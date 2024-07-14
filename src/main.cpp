@@ -14,6 +14,7 @@
 #include "Serialization.h"
 #include "PapyrusFunctions.h"
 #include "Utility.h"
+#include "StringSetting.h"
 
 void SKSEMessageHandler(SKSE::MessagingInterface::Message* message) {
     if (message->type == SKSE::MessagingInterface::kDataLoaded) {
@@ -35,7 +36,7 @@ extern "C" [[maybe_unused]] __declspec(dllexport) bool SKSEPlugin_Load(const SKS
     SKSE::Init(skse);
 
     SetupLog();
-    spdlog::set_level(spdlog::level::trace);
+    spdlog::set_level(spdlog::level::debug);
 
     auto* serialization = SKSE::GetSerializationInterface();
     serialization->SetUniqueID('BSTY');
@@ -45,6 +46,7 @@ extern "C" [[maybe_unused]] __declspec(dllexport) bool SKSEPlugin_Load(const SKS
 
     SKSE::GetPapyrusInterface()->Register(PapyrusFunctions);
     SKSE::GetMessagingInterface()->RegisterListener(SKSEMessageHandler);
+    UTILITY_H::Install();
 
     LoadDataFromINI();
     PopulateVariantMap();

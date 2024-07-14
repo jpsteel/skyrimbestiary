@@ -1,4 +1,7 @@
 #include "PapyrusFunctions.h"
+
+#include <nlohmann/json.hpp>
+
 #include "Utility.h"
 
 bool PapyrusFunctions(RE::BSScript::IVirtualMachine* vm) {
@@ -7,6 +10,8 @@ bool PapyrusFunctions(RE::BSScript::IVirtualMachine* vm) {
     vm->RegisterFunction("getMenuHotkey", "RPGUI_BestiaryQuestScript", getMenuHotkey);
     vm->RegisterFunction("getWidgetX", "RPGUI_BestiaryQuestScript", getWidgetX);
     vm->RegisterFunction("getWidgetY", "RPGUI_BestiaryQuestScript", getWidgetY);
+    vm->RegisterFunction("getEnableWidget", "RPGUI_BestiaryQuestScript", getEnableWidget);
+    vm->RegisterFunction("getTranslatedName", "RPGUI_BestiaryWidgetQuestScript", getTranslatedName);
     return true;
 }
 
@@ -91,8 +96,23 @@ std::string getCreaturesLists(RE::StaticFunctionTag*) {
     return result;
 }
 
+std::string getTranslatedName(RE::StaticFunctionTag*, RE::BSFixedString creatureName) {
+    std::string creature = creatureName.c_str();
+    std::transform(creature.begin(), creature.end(), creature.begin(), ::toupper);
+    auto it = VariantMap.find(creature);
+    if (it != VariantMap.end()) {
+        std::string locName = it->second.localizedName;
+        return locName;
+    } else {
+        logger::warn("Creature name {} not found in VariantMap", creature);
+        return creature;
+    }
+}
+
 int getMenuHotkey(RE::StaticFunctionTag*) { return menuHotkey; }
 
 int getWidgetX(RE::StaticFunctionTag*) { return widgetX; }
 
 int getWidgetY(RE::StaticFunctionTag*) { return widgetY; }
+
+int getEnableWidget(RE::StaticFunctionTag*) { return enableWidget; }

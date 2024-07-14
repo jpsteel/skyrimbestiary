@@ -1,8 +1,13 @@
 #include "Utility.h"
+
 #include <spdlog/sinks/basic_file_sink.h>
+
 #include <algorithm>
 #include <filesystem>
 #include <iostream>
+#include <nlohmann/json.hpp>
+#include "KeyMapping.h"
+#include "StringSetting.h"
 
 namespace fs = std::filesystem;
 namespace logger = SKSE::log;
@@ -10,7 +15,10 @@ namespace logger = SKSE::log;
 int menuHotkey;
 int widgetX;
 int widgetY;
+int enableWidget;
+bool hintShown = false;
 const std::string INI_FILE_PATH = "Data/Dragonborns Bestiary.ini";
+
 
 std::unordered_map<std::string, VariantInfo> VariantMap;
 std::unordered_set<std::string> BestiaryUnlockedCreatures;
@@ -37,15 +45,18 @@ void LoadDataFromINI() {
         return;
     }
 
-    const char* keycodeStr = ini.GetValue("General", "Keycode", "0");
-    const char* widget_x = ini.GetValue("General", "BestiaryWidget_X", "0");
-    const char* widget_y = ini.GetValue("General", "BestiaryWidget_Y", "0");
+    const char* keycodeStr = ini.GetValue("General", "iKeycode", "0");
+    const char* widget_x = ini.GetValue("General", "iBestiaryWidget_X", "0");
+    const char* widget_y = ini.GetValue("General", "iBestiaryWidget_Y", "0");
+    const char* enable_widget = ini.GetValue("General", "iEnableWidget", "0");
     menuHotkey = std::stoi(keycodeStr);
     widgetX = std::stoi(widget_x);
     widgetY = std::stoi(widget_y);
-    logger::debug("Loaded keycode: {}", menuHotkey);
+    enableWidget = std::stoi(enable_widget);
+    logger::debug("Loaded keycode: {}", keycodeStr);
     logger::debug("Loaded widget x offset: {}", widget_x);
     logger::debug("Loaded widget y offset: {}", widget_y);
+    logger::debug("Loaded widget enabled: {}", enable_widget);
 }
 
 void PopulateVariantMap() {
@@ -63,9 +74,10 @@ void PopulateVariantMap() {
                                 if (variant.find("_LOOT") == std::string::npos &&
                                     variant.find("_RESIST") == std::string::npos) {
                                     std::transform(variant.begin(), variant.end(), variant.begin(), ::toupper);
-                                    VariantMap[variant] = {creatureName, category};
-                                    logger::trace("Added variant {} with creature {} and category {}", variant,
-                                                  creatureName, category);
+                                    std::string localizedName = GetVariantName(variantEntry.path().string());
+                                    VariantMap[variant] = {creatureName, category, localizedName};
+                                    logger::trace("Added variant {} with localized name {} creature {} and category {}",
+                                                  variant, localizedName, creatureName, category);
                                 }
                             }
                         }
@@ -75,5 +87,57 @@ void PopulateVariantMap() {
         }
     } catch (const fs::filesystem_error& e) {
         logger::error("Filesystem error: {}", e.what());
+    } catch (const std::exception& e) {
+        logger::error("Error: {}", e.what());
     }
+}
+
+std::string GetVariantName(const std::string& filePath) {
+    std::ifstream file(filePath);
+    nlohmann::json json;
+    file >> json;
+    return json.value("name", "");
+}
+
+void ShowTutorialHintText() {
+    auto hud = RE::UI::GetSingleton()->GetMenu(RE::HUDMenu::MENU_NAME);
+    if (hud) {
+        RE::GFxValue args[2];
+        std::string key = GetKeyNameFromScanCode(menuHotkey);
+
+        std::string formattedMessage =
+            std::vformat(std::string_view{bestiaryTutorialMessage}, std::make_format_args(key));
+        args[0].SetString(formattedMessage);
+        args[1].SetBoolean(true);
+        hud->uiMovie->Invoke("_root.HUDMovieBaseInstance.ShowTutorialHintText", nullptr, args, 2);
+    }
+}
+
+void HideTutorialHintText() {
+    std::this_thread::sleep_for(std::chrono::seconds(3));
+    auto hud = RE::UI::GetSingleton()->GetMenu(RE::HUDMenu::MENU_NAME);
+    if (hud) {
+        RE::GFxValue args[2];
+        args[0].SetString("");
+        args[1].SetBoolean(false);
+        hud->uiMovie->Invoke("_root.HUDMovieBaseInstance.ShowTutorialHintText", nullptr, args, 2);
+    }
+}
+
+void CheckAndShowHint() {
+    if (!hintShown) {
+        logger::debug("Showing bestiary tutorial");
+        ShowTutorialHintText();
+        hintShown = true;
+        std::jthread t(HideTutorialHintText);
+        t.detach();
+    }
+}
+
+std::string GetKeyNameFromScanCode(int scanCode) {
+    auto it = kKeyMap.find(scanCode);
+    if (it != kKeyMap.end()) {
+        return it->second;
+    }
+    return "Unknown";
 }
