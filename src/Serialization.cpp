@@ -1,39 +1,50 @@
 #include "Serialization.h"
 
 void RevertCallback(SKSE::SerializationInterface*) {
-    spdlog::info("RevertCallback triggered.");
+    logger::info("RevertCallback triggered.");
     BestiaryDataMap.clear();
+    hintShown = false;
 }
 
 void SaveCallback(SKSE::SerializationInterface* intfc) {
-    spdlog::info("SaveCallback triggered.");
+    logger::info("SaveCallback triggered.");
     intfc->OpenRecord('BSTY', DATA_VERSION);
     Serialize(intfc);
+
+    intfc->OpenRecord('HSHN', DATA_VERSION);
+    intfc->WriteRecordData(&hintShown, sizeof(hintShown));
 }
 
 void LoadCallback(SKSE::SerializationInterface* intfc) {
-    spdlog::info("LoadCallback triggered.");
+    logger::info("LoadCallback triggered.");
     uint32_t type, version, length;
     while (intfc->GetNextRecordInfo(type, version, length)) {
         if (type == 'BSTY') {
-            spdlog::info("Deserializing record 'BSTY' with version {}", version);
+            logger::info("Deserializing record 'BSTY' with version {}", version);
             if (!Deserialize(intfc, version)) {
-                spdlog::error("Failed to deserialize BestiaryDataMap");
+                logger::error("Failed to deserialize BestiaryDataMap");
+            }
+        } else if (type == 'HSHN') {
+            logger::info("Deserializing record 'HSHN' with version {}", version);
+            if (length == sizeof(hintShown)) {
+                intfc->ReadRecordData(&hintShown, sizeof(hintShown));
+            } else {
+                logger::error("Incorrect data length for hintShown");
             }
         } else {
-            spdlog::warn("Unknown record type: 0x{:X}", type);
+            logger::warn("Unknown record type: 0x{:X}", type);
         }
     }
 }
 
 void Serialize(SKSE::SerializationInterface* intfc) {
     uint32_t size = static_cast<uint32_t>(BestiaryDataMap.size());
-    spdlog::info("Serializing BestiaryDataMap: {} entries", size);
+    logger::info("Serializing BestiaryDataMap: {} entries", size);
     intfc->WriteRecordData(&size, sizeof(size));
 
     for (const auto& [creatureName, data] : BestiaryDataMap) {
         uint32_t length = static_cast<uint32_t>(creatureName.length());
-        spdlog::debug("Serializing creature: {}", creatureName);
+        logger::debug("Serializing creature: {}", creatureName);
         intfc->WriteRecordData(&length, sizeof(length));
         intfc->WriteRecordData(creatureName.data(), length);
         data.Serialize(intfc);
@@ -44,29 +55,29 @@ bool Deserialize(SKSE::SerializationInterface* intfc, uint32_t version) {
     (void)version;
     uint32_t size;
     if (!intfc->ReadRecordData(&size, sizeof(size))) {
-        spdlog::error("Failed to read size of BestiaryDataMap");
+        logger::error("Failed to read size of BestiaryDataMap");
         return false;
     }
-    spdlog::info("Deserializing BestiaryDataMap: {} entries", size);
+    logger::info("Deserializing BestiaryDataMap: {} entries", size);
     BestiaryDataMap.clear();
 
     for (uint32_t i = 0; i < size; ++i) {
         uint32_t length;
         if (!intfc->ReadRecordData(&length, sizeof(length))) {
-            spdlog::error("Failed to read length of creature name");
+            logger::error("Failed to read length of creature name");
             return false;
         }
         std::string creatureName(length, '\0');
         if (!intfc->ReadRecordData(&creatureName[0], length)) {
-            spdlog::error("Failed to read creature name");
+            logger::error("Failed to read creature name");
             return false;
         }
         CreatureData data;
         if (!data.Deserialize(intfc)) {
-            spdlog::error("Failed to deserialize creature data for {}", creatureName);
+            logger::error("Failed to deserialize creature data for {}", creatureName);
             return false;
         }
-        spdlog::debug("Deserialized creature: {}", creatureName);
+        logger::debug("Deserialized creature: {}", creatureName);
         BestiaryDataMap[creatureName] = data;
     }
     return true;

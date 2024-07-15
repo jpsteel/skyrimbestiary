@@ -35,7 +35,7 @@ extern "C" [[maybe_unused]] __declspec(dllexport) bool SKSEPlugin_Load(const SKS
     SKSE::Init(skse);
 
     SetupLog();
-    spdlog::set_level(spdlog::level::trace);
+    spdlog::set_level(spdlog::level::debug);
 
     auto* serialization = SKSE::GetSerializationInterface();
     serialization->SetUniqueID('BSTY');

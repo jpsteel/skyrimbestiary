@@ -1,10 +1,11 @@
 #ifndef SERIALIZATION_H
 #define SERIALIZATION_H
 
-#pragma once
 #include <SKSE/SKSE.h>
 
 #include "Utility.h"
+
+constexpr std::uint32_t kHintShown = 'HSHN';
 
 void RevertCallback(SKSE::SerializationInterface*);
 void SaveCallback(SKSE::SerializationInterface*);

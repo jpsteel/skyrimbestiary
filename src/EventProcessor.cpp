@@ -135,7 +135,7 @@ RE::BSEventNotifyControl EventProcessor::ProcessEvent(const RE::TESQuestStageEve
 
 RE::BSEventNotifyControl EventProcessor::ProcessEvent(const RE::MenuOpenCloseEvent* event,
                                                       RE::BSTEventSource<RE::MenuOpenCloseEvent>*) {
-    if (!event || event->menuName != RE::BookMenu::MENU_NAME || !event->opening) {
+    if (!event || event->menuName != RE::BookMenu::MENU_NAME|| !event->opening) {
         return RE::BSEventNotifyControl::kContinue;
     }
 
@@ -169,12 +169,13 @@ std::vector<std::string> EventProcessor::getBestiaryKeywords(RE::TESBoundObject*
             auto it = VariantMap.find(variant);
             if (it != VariantMap.end()) {
                 logger::debug("Found bestiary keyword: {}", variant);
-                auto [creatureName, category] = it->second;
+                auto [creatureName, category, localizedName] = it->second;
                 auto [insertIt, inserted] = BestiaryDataMap.emplace(variant, CreatureData{0, 0, 0});
                 if (inserted) {
                     logger::info("{} added to Bestiary with initial values", variant);
                     SKSE::ModCallbackEvent modEvent("AddBestiaryEntry", variant);
                     SKSE::GetModCallbackEventSource()->SendEvent(&modEvent);
+                    CheckAndShowHint();
                 } else {
                     logger::debug("{} already exists in Bestiary", variant);
                 }

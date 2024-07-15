@@ -48,6 +48,7 @@ class BestiaryMenu extends MovieClip
 	var CreatureName_mc:MovieClip;
 	var CreatureDescription_mc:MovieClip;
 	var VariantSelector_mc:MovieClip;
+	var scrollbar:MovieClip;
 	var creatureDescriptionTextField;
 	var creatureNameTextField;
 	var lootTextField;
@@ -189,7 +190,9 @@ class BestiaryMenu extends MovieClip
 	function onLoad():Void
 	{
 		//Debug
-		CategoryList.addEventListener("debugLog",this,"debugLogHandler");
+		/*CategoryList.addEventListener("debugLog",this,"debugLogHandler");
+		CreatureDescription_mc.addEventListener("debugLog",this,"debugLogHandler");
+		scrollbar.addEventListener("debugLog",this,"debugLogHandler");*/
 		//
 
 		CategoryList.InvalidateData();
@@ -540,6 +543,7 @@ class BestiaryMenu extends MovieClip
 			LoadCreatureImage(sCurrentCreature.id, sCurrentVariant.id, sCurrentVariantCategory);
 			LoadCreatureLoot(sCurrentCreature.id, sCurrentVariant.id, sCurrentVariantCategory);
 			LoadCreatureResist(sCurrentCreature.id, sCurrentVariant.id, sCurrentVariantCategory);
+			CreatureDescription_mc.updateText();
 			SetupCounters(sCurrentVariant);
 			iVariantIndex += 1;
 		}
@@ -569,6 +573,7 @@ class BestiaryMenu extends MovieClip
 			LoadCreatureImage(sCurrentCreature.id, sCurrentVariant.id, sCurrentVariantCategory);
 			LoadCreatureLoot(sCurrentCreature.id, sCurrentVariant.id, sCurrentVariantCategory);
 			LoadCreatureResist(sCurrentCreature.id, sCurrentVariant.id, sCurrentVariantCategory);
+			CreatureDescription_mc.updateText();
 			SetupCounters(sCurrentVariant);
 			iVariantIndex -= 1;
 		}
@@ -667,6 +672,7 @@ class BestiaryMenu extends MovieClip
 				var creature:Object = JSON.parse(src);
 				that.creatureNameTextField.text = creature.name;
 				that.creatureDescriptionTextField.text = creature.description;
+				that.CreatureDescription_mc.updateText();
 			}
 			catch (ex)
 			{
@@ -1365,7 +1371,7 @@ class BestiaryMenu extends MovieClip
 					}
 				}
 				var i = 0;
-				while (that.CategoryList.entryList[i].text != that.sCurrentCategory){
+				while (that.CategoryList.entryList[i].id != that.sCurrentCategory){
 					that.CategoryList.moveSelectionDown();
 					i++;
 				}
@@ -1376,7 +1382,7 @@ class BestiaryMenu extends MovieClip
 				that.iVariantIndex = 0;
 				that.HandleVariants(that.aCurrentRoaster[0].base, that.aCurrentRoaster[0].variants);
 				var i = 0;
-				while (that.CategoryList.entryList[i].text != that.sCurrentCategory){
+				while (that.CategoryList.entryList[i].id != that.sCurrentCategory){
 					that.CategoryList.moveSelectionDown();
 					i++;
 				}
@@ -1431,5 +1437,10 @@ class BestiaryMenu extends MovieClip
 			}
 			debugTextField.text += logText + "\n";
 		}
+	}
+	
+	function debugLogHandler(event:Object):Void
+	{
+		debugLog(event.message);
 	}
 }

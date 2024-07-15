@@ -1,11 +1,11 @@
 #ifndef UTILITY_H
 #define UTILITY_H
 
-#pragma once
-
 #include <SimpleIni.h>
 #include <spdlog/sinks/basic_file_sink.h>
 
+#include <fstream>
+#include <nlohmann/json.hpp>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -15,10 +15,14 @@ namespace logger = SKSE::log;
 extern int menuHotkey;
 extern int widgetX;
 extern int widgetY;
+extern int enableWidget;
+extern std::string tutorialMessage;
+extern bool hintShown;
 
 struct VariantInfo {
     std::string creature;
     std::string category;
+    std::string localizedName;
 };
 
 struct CreatureData {
@@ -37,5 +41,10 @@ extern std::unordered_map<std::string, CreatureData> BestiaryDataMap;
 void SetupLog();
 void LoadDataFromINI();
 void PopulateVariantMap();
+std::string GetVariantName(const std::string& filePath);
+void ShowTutorialHintText();
+void HideTutorialHintText();
+void CheckAndShowHint();
+std::string GetKeyNameFromScanCode(int scanCode);
 
 #endif  // UTILITY_H
