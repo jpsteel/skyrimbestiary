@@ -135,16 +135,85 @@ RE::BSEventNotifyControl EventProcessor::ProcessEvent(const RE::TESQuestStageEve
 
 RE::BSEventNotifyControl EventProcessor::ProcessEvent(const RE::MenuOpenCloseEvent* event,
                                                       RE::BSTEventSource<RE::MenuOpenCloseEvent>*) {
-    if (!event || event->menuName != RE::BookMenu::MENU_NAME|| !event->opening) {
+    if (!event) {
         return RE::BSEventNotifyControl::kContinue;
     }
 
-    auto book = RE::BookMenu::GetTargetForm();
-    if (book) {
-        auto addedVariants = getBestiaryKeywords(book);
-        for (const auto& variant : addedVariants) {
-            logger::info("Player read book and added {}", variant);
+    if (event->opening) {
+        if (event->menuName == RE::JournalMenu::MENU_NAME && enableMenuOption == 1) {
+            AddMenuOption();
+            return RE::BSEventNotifyControl::kContinue;
+        } else if (event->menuName == RE::BookMenu::MENU_NAME) {
+            auto book = RE::BookMenu::GetTargetForm();
+            if (book) {
+                auto addedVariants = getBestiaryKeywords(book);
+                for (const auto& variant : addedVariants) {
+                    logger::info("Player read book and added {}", variant);
+                }
+            }
+            return RE::BSEventNotifyControl::kContinue;
+        } else {
+            return RE::BSEventNotifyControl::kContinue;
         }
+    }
+    return RE::BSEventNotifyControl::kContinue;
+}
+
+RE::BSEventNotifyControl EventProcessor::ProcessEvent(RE::InputEvent* const* eventPtr,
+                                                      RE::BSTEventSource<RE::InputEvent*>*) {
+    if (!eventPtr || !*eventPtr || enableMenuOption != 1) {
+        return RE::BSEventNotifyControl::kContinue;
+    }
+
+    auto ui = RE::UI::GetSingleton();
+    if (!ui || !ui->IsMenuOpen(RE::JournalMenu::MENU_NAME)) {
+        return RE::BSEventNotifyControl::kContinue;
+    }
+
+    auto* event = *eventPtr;
+    if (event->eventType == RE::INPUT_EVENT_TYPE::kButton || event->eventType == RE::INPUT_EVENT_TYPE::kThumbstick) {
+        const auto menu = ui->GetMenu<RE::JournalMenu>(RE::JournalMenu::MENU_NAME).get();
+        const auto view = menu ? menu->GetRuntimeData().systemTab.view : nullptr;
+        RE::GFxValue page;
+        if (!view || !view->GetVariable(&page, "_root.QuestJournalFader.Menu_mc.SystemFader.Page_mc")) { 
+            logger::warn("Couldn't find _root.QuestJournalFader.Menu_mc.SystemFader.Page_mc"); 
+            return RE::BSEventNotifyControl::kContinue;
+        }
+
+        RE::GFxValue categoryList;
+        RE::GFxValue currentState;
+        if (page.GetMember("CategoryList", &categoryList) && page.GetMember("iCurrentState", &currentState)) {
+
+            RE::GFxValue selectedIndex; 
+            if (categoryList.GetMember("iSelectedIndex", &selectedIndex)) {
+                RE::GFxValue entryList;
+                if (categoryList.GetMember("entryList", &entryList)) { 
+                    RE::GFxValue selectedEntry;
+                    entryList.GetElement(selectedIndex.GetNumber(), &selectedEntry);
+                    RE::GFxValue entryText;
+                    selectedEntry.GetMember("text", &entryText);
+                    logger::trace("Entry text: {}", entryText.GetString());
+                    logger::trace("Current state: {}", currentState.GetNumber());
+                    if (entryText.GetString() == SYSTEMMENU_ALIAS && currentState == 13) {
+                        logger::debug("Selected entry is {}", entryText.GetString()); 
+                        auto msgQueue = RE::UIMessageQueue::GetSingleton();
+                        if (msgQueue) {
+                            msgQueue->AddMessage(RE::JournalMenu::MENU_NAME, RE::UI_MESSAGE_TYPE::kHide, nullptr);
+
+                            SKSE::ModCallbackEvent modEvent("OpenFromSystemPage");
+                            SKSE::GetModCallbackEventSource()->SendEvent(&modEvent);
+                            logger::info("Sent OpenFromSystemPage Event");
+
+                            return RE::BSEventNotifyControl::kStop;
+                        } else {
+                            logger::warn("UIMessageQueue singleton not found");
+                        }
+                        return RE::BSEventNotifyControl::kContinue;
+                    }
+                }
+            } 
+        }
+        return RE::BSEventNotifyControl::kContinue;
     }
     return RE::BSEventNotifyControl::kContinue;
 }

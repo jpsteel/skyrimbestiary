@@ -16,8 +16,8 @@
 #include "Utility.h"
 
 void SKSEMessageHandler(SKSE::MessagingInterface::Message* message) {
+    auto eventProcessor = EventProcessor::GetSingleton();
     if (message->type == SKSE::MessagingInterface::kDataLoaded) {
-        auto eventProcessor = EventProcessor::GetSingleton();
         static bool registered = false;
         if (!registered) {
             RE::ScriptEventSourceHolder::GetSingleton()->AddEventSink<RE::TESActivateEvent>(eventProcessor);
@@ -29,7 +29,12 @@ void SKSEMessageHandler(SKSE::MessagingInterface::Message* message) {
             logger::info("Event processor registered.");
         }
     }
+    if (message->type == SKSE::MessagingInterface::kInputLoaded) {
+        RE::BSInputDeviceManager::GetSingleton()->AddEventSink<RE::InputEvent*>(eventProcessor);
+    }
 }
+
+
 
 extern "C" [[maybe_unused]] __declspec(dllexport) bool SKSEPlugin_Load(const SKSE::LoadInterface* skse) {
     SKSE::Init(skse);

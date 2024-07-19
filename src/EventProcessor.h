@@ -11,11 +11,12 @@ class EventProcessor : public RE::BSTEventSink<RE::TESActivateEvent>,
                        public RE::BSTEventSink<RE::TESDeathEvent>,
                        public RE::BSTEventSink<RE::TESSpellCastEvent>,
                        public RE::BSTEventSink<RE::TESQuestStageEvent>,
+                       public RE::BSTEventSink<RE::InputEvent*>,
                        public RE::BSTEventSink<RE::MenuOpenCloseEvent> {
 public:
     static EventProcessor* GetSingleton() {
         static EventProcessor instance;
-        return std::addressof(instance);
+        return &instance;
     }
 
     RE::BSEventNotifyControl ProcessEvent(const RE::TESActivateEvent* event,
@@ -26,6 +27,7 @@ public:
                                           RE::BSTEventSource<RE::TESSpellCastEvent>*) override;
     RE::BSEventNotifyControl ProcessEvent(const RE::TESQuestStageEvent* event,
                                           RE::BSTEventSource<RE::TESQuestStageEvent>*) override;
+    RE::BSEventNotifyControl ProcessEvent(RE::InputEvent* const* eventPtr, RE::BSTEventSource<RE::InputEvent*>*) override;
     RE::BSEventNotifyControl ProcessEvent(const RE::MenuOpenCloseEvent* event,
                                           RE::BSTEventSource<RE::MenuOpenCloseEvent>*) override;
 

@@ -12,10 +12,13 @@
 
 namespace logger = SKSE::log;
 
+const RE::GFxValue SYSTEMMENU_ALIAS = "$BESTIARY MENU";
+
 extern int menuHotkey;
 extern int widgetX;
 extern int widgetY;
 extern int enableWidget;
+extern int enableMenuOption;
 extern std::string tutorialMessage;
 extern bool hintShown;
 
@@ -46,5 +49,6 @@ void ShowTutorialHintText();
 void HideTutorialHintText();
 void CheckAndShowHint();
 std::string GetKeyNameFromScanCode(int scanCode);
+void AddMenuOption();
 
 #endif  // UTILITY_H
