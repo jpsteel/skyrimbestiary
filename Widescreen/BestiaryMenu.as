@@ -258,6 +258,16 @@ class BestiaryMenu extends MovieClip
 			{
 				this.CloseMenu();
 			}
+			else if (details.navEquivalent == NavigationCode.PAGE_UP || details.navEquivalent == NavigationCode.GAMEPAD_L2)
+			{
+				scrollbar.scrollUp();
+				bHandledInput = true;
+			}
+			else if (details.navEquivalent == NavigationCode.PAGE_DOWN || details.navEquivalent == NavigationCode.GAMEPAD_R2)
+			{
+				scrollbar.scrollDown();
+				bHandledInput = true;
+			}
 			else if (details.navEquivalent == NavigationCode.ENTER && _currentFocus == CategoryList)
 			{
 				_currentFocus.onItemPress();
