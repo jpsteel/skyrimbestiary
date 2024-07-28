@@ -15,6 +15,7 @@
 #include "RE/I/IMenu.h"
 #include "RE/U/UI.h"
 #include "RE/G/GFxMovieView.h"
+#include "RE/G/GFxMovieDef.h"
 #include "RE/G/GFxValue.h"
 #include "RE/B/BSScaleformManager.h"
 #include "RE/I/InterfaceStrings.h"

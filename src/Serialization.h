@@ -4,6 +4,7 @@
 #include <SKSE/SKSE.h>
 
 #include "Utility.h"
+#include "HUDWidget.h"
 
 constexpr std::uint32_t kHintShown = 'HSHN';
 

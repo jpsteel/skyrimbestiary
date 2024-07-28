@@ -9,6 +9,9 @@
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
+#include <mutex>
+#include <condition_variable>
+#include "HUDWidget.h"
 
 namespace logger = SKSE::log;
 
@@ -17,10 +20,12 @@ const RE::GFxValue SYSTEMMENU_ALIAS = "$BESTIARY MENU";
 extern int menuHotkey;
 extern int widgetX;
 extern int widgetY;
+extern float widgetScale;
 extern int enableWidget;
 extern int enableMenuOption;
 extern std::string tutorialMessage;
 extern bool hintShown;
+extern std::string resistanceModConfig;
 
 struct VariantInfo {
     std::string creature;
@@ -40,6 +45,7 @@ struct CreatureData {
 extern std::unordered_map<std::string, VariantInfo> VariantMap;
 extern std::unordered_set<std::string> BestiaryUnlockedCreatures;
 extern std::unordered_map<std::string, CreatureData> BestiaryDataMap;
+extern std::string lastEntry;
 
 void SetupLog();
 void LoadDataFromINI();
@@ -50,5 +56,12 @@ void HideTutorialHintText();
 void CheckAndShowHint();
 std::string GetKeyNameFromScanCode(int scanCode);
 void AddMenuOption();
+void SetResistanceModConfig();
+float GetGlobalVariableValue(const std::string& editorID);
+void DisplayEntryWithWait(const std::string& variant);
+std::string DebugGetAllCreaturesLists();
+std::string GetCreaturesLists();
+std::string GetTranslatedName(std::string creatureName);
+bool CheckIfModIsLoaded(RE::BSFixedString a_modname);
 
 #endif  // UTILITY_H

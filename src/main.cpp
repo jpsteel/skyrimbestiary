@@ -12,25 +12,40 @@
 
 #include "EventProcessor.h"
 #include "Serialization.h"
-#include "PapyrusFunctions.h"
 #include "Utility.h"
+#include "BestiaryMenu.h"
+#include "HUDWidget.h"
+#include "Sync.h"
 
 void SKSEMessageHandler(SKSE::MessagingInterface::Message* message) {
     auto eventProcessor = EventProcessor::GetSingleton();
-    if (message->type == SKSE::MessagingInterface::kDataLoaded) {
-        static bool registered = false;
-        if (!registered) {
+    switch (message->type) {
+
+        case (SKSE::MessagingInterface::kDataLoaded):
             RE::ScriptEventSourceHolder::GetSingleton()->AddEventSink<RE::TESActivateEvent>(eventProcessor);
             RE::ScriptEventSourceHolder::GetSingleton()->AddEventSink<RE::TESDeathEvent>(eventProcessor);
             RE::ScriptEventSourceHolder::GetSingleton()->AddEventSink<RE::TESSpellCastEvent>(eventProcessor);
             RE::ScriptEventSourceHolder::GetSingleton()->AddEventSink<RE::TESQuestStageEvent>(eventProcessor);
             RE::UI::GetSingleton()->AddEventSink<RE::MenuOpenCloseEvent>(eventProcessor);
-            registered = true;
-            logger::info("Event processor registered.");
-        }
-    }
-    if (message->type == SKSE::MessagingInterface::kInputLoaded) {
-        RE::BSInputDeviceManager::GetSingleton()->AddEventSink<RE::InputEvent*>(eventProcessor);
+            Scaleform::BestiaryMenu::Register();
+            Scaleform::HUDWidget::Register();
+            Scaleform::HUDWidget::Show();
+            SetResistanceModConfig();
+            break;
+
+        case (SKSE::MessagingInterface::kInputLoaded):
+            RE::BSInputDeviceManager::GetSingleton()->AddEventSink<RE::InputEvent*>(eventProcessor);
+            break;
+
+        case SKSE::MessagingInterface::kPostLoadGame:
+        case SKSE::MessagingInterface::kPostLoad:
+        case SKSE::MessagingInterface::kNewGame:
+        case SKSE::MessagingInterface::kSaveGame:
+            Scaleform::HUDWidget::Show();
+            break;
+
+        default:
+            break;
     }
 }
 
@@ -48,11 +63,11 @@ extern "C" [[maybe_unused]] __declspec(dllexport) bool SKSEPlugin_Load(const SKS
     serialization->SetLoadCallback(LoadCallback);
     serialization->SetRevertCallback(RevertCallback);
 
-    SKSE::GetPapyrusInterface()->Register(PapyrusFunctions);
     SKSE::GetMessagingInterface()->RegisterListener(SKSEMessageHandler);
 
     LoadDataFromINI();
     PopulateVariantMap();
+    std::thread(ProcessQueue).detach();
 
     logger::info("Bestiary is in Player's pocket!");
 

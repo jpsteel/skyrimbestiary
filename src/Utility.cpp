@@ -7,17 +7,21 @@
 #include <iostream>
 #include <nlohmann/json.hpp>
 #include "KeyMapping.h"
+#include "Sync.h"
 
 
 namespace fs = std::filesystem;
 namespace logger = SKSE::log;
 
+std::string lastEntry;
 int menuHotkey;
 int widgetX;
 int widgetY;
+float widgetScale;
 int enableWidget;
 int enableMenuOption;
 std::string tutorialMessage;
+std::string resistanceModConfig;
 bool hintShown = false;
 const std::string INI_FILE_PATH = "Data/Dragonborns Bestiary.ini";
 
@@ -50,18 +54,21 @@ void LoadDataFromINI() {
     const char* keycodeStr = ini.GetValue("General", "iKeycode", "0");
     const char* widget_x = ini.GetValue("General", "iBestiaryWidget_X", "0");
     const char* widget_y = ini.GetValue("General", "iBestiaryWidget_Y", "0");
+    const char* widget_scale = ini.GetValue("General", "iBestiaryWidgetScale", "0");
     const char* enable_widget = ini.GetValue("General", "iEnableWidget", "0");
     const char* enable_menu_option = ini.GetValue("General", "iEnableSystemMenuOption", "0");
     const char* tutorial_msg = ini.GetValue("General", "sTutorialMessage", "0");
     menuHotkey = std::stoi(keycodeStr);
     widgetX = std::stoi(widget_x);
     widgetY = std::stoi(widget_y);
+    widgetScale = std::stof(widget_scale);
     enableWidget = std::stoi(enable_widget);
     enableMenuOption = std::stoi(enable_menu_option);
     tutorialMessage = tutorial_msg;
     logger::debug("Loaded keycode: {}", keycodeStr);
     logger::debug("Loaded widget x offset: {}", widget_x);
     logger::debug("Loaded widget y offset: {}", widget_y);
+    logger::debug("Loaded widget scale: {}", widget_scale);
     logger::debug("Loaded widget enabled: {}", enable_widget);
     logger::debug("Loaded menu option enabled: {}", enable_menu_option);
     logger::debug("Loaded tutorial message localization: {}", tutorial_msg);
@@ -84,7 +91,7 @@ void PopulateVariantMap() {
                                     std::transform(variant.begin(), variant.end(), variant.begin(), ::toupper);
                                     std::string localizedName = GetVariantName(variantEntry.path().string());
                                     VariantMap[variant] = {creatureName, category, localizedName};
-                                    logger::trace("Added variant {} with localized name {} creature {} and category {}",
+                                    logger::debug("Added variant {} with localized name {} creature {} and category {}",
                                                   variant, localizedName, creatureName, category);
                                 }
                             }
@@ -172,16 +179,20 @@ void AddMenuOption() {
         if (categoryList.GetMember("entryList", &entryList)) {
             std::uint32_t bestiaryIndex;
 
-            std::uint32_t index = 0;
-            std::string text;
-            entryList.VisitMembers([&](const char*, const RE::GFxValue& a_value) {
-                RE::GFxValue textVal;
-                a_value.GetMember("text", &textVal);
-                if (text = textVal.GetString(); text == "$HELP") {
-                    bestiaryIndex = index;
+            std::uint32_t length = entryList.GetArraySize();
+            for (std::uint32_t index = 0; index < length; ++index) {
+                RE::GFxValue entry;
+                if (entryList.GetElement(index, &entry)) {
+                    RE::GFxValue textVal;
+                    if (entry.GetMember("text", &textVal)) {
+                        std::string text = textVal.GetString();
+                        if (text == "$HELP") {
+                            bestiaryIndex = index;
+                            break;
+                        }
+                    }
                 }
-                index++;
-            });
+            }
 
             if (bestiaryIndex) {
                 RE::GFxValue entryBestiary;
@@ -195,4 +206,148 @@ void AddMenuOption() {
         }
     }
     return;
+}
+
+void SetResistanceModConfig() {
+    if (CheckIfModIsLoaded("Resistances and Weaknesses.esp")) { 
+        logger::info("Found resistance mod: Resistances & Weaknesses");
+        resistanceModConfig = "r&w";
+        return;
+    } else if (CheckIfModIsLoaded("know_your_enemy2.esp")) {
+        logger::info("Found resistance mod: Know Your Enemy 2");
+        resistanceModConfig = "kye2";
+        return;
+    } else if (CheckIfModIsLoaded("Requiem.esp")) {
+        logger::info("Found resistance mod: Requiem");
+        resistanceModConfig = "req";
+        return;
+    } else {
+        logger::info("No resistance mod found, using Vanilla settings");
+        resistanceModConfig = "vanilla";
+        return;
+    }
+}
+
+bool CheckIfModIsLoaded(RE::BSFixedString a_modname) {
+    auto* dataHandler = RE::TESDataHandler::GetSingleton();
+    const RE::TESFile* modInfo = dataHandler->LookupModByName(a_modname.data());
+    if (!modInfo || modInfo->compileIndex == 255) {  
+        return false;
+    }
+    return true;
+}
+
+float GetGlobalVariableValue(const std::string& editorID) {
+    auto dataHandler = RE::TESDataHandler::GetSingleton();
+    if (!dataHandler) {
+        logger::warn("TESDataHandler not found.");
+        return 0.0f;
+    }
+
+    for (auto& global : dataHandler->GetFormArray<RE::TESGlobal>()) {
+        if (global->GetFormEditorID() == editorID) {
+            return global->value;
+        }
+    }
+
+    logger::warn("Global variable with EditorID %s not found.", editorID.c_str());
+    return 0.0f;
+}
+
+void DisplayEntryWithWait(const std::string& variant) {
+    std::lock_guard<std::mutex> lock(entryMutex);
+    entryQueue.push(variant);
+}
+
+std::string DebugGetAllCreaturesLists() {
+    logger::info("Writing full creatures list (dev mode)");
+    std::unordered_map<std::string, std::unordered_map<std::string, std::vector<std::string>>> categoryCreatureMap;
+
+    for (const auto& [variant, info] : VariantMap) {
+        categoryCreatureMap[info.category][info.creature].push_back(variant + "#0#0#0");
+    }
+
+    std::ostringstream creaturesListFull;
+
+    for (const auto& [category, creatures] : categoryCreatureMap) {
+        std::ostringstream creaturesListJoin;
+        for (const auto& [creatureName, variants] : creatures) {
+            std::ostringstream variantsListJoin;
+            for (const auto& variant : variants) {
+                variantsListJoin << variant << "@";
+            }
+            std::string variantsStr = variantsListJoin.str();
+            if (!variantsStr.empty()) {
+                variantsStr.pop_back();  // Remove the last '@'
+                creaturesListJoin << creatureName << "_" << variantsStr << ",";
+            }
+        }
+        std::string creaturesStr = creaturesListJoin.str();
+        if (!creaturesStr.empty()) {
+            creaturesStr.pop_back();  // Remove the last ','
+            creaturesListFull << category << ":" << creaturesStr << "&";
+        }
+    }
+
+    std::string result = creaturesListFull.str();
+    if (!result.empty()) {
+        result.pop_back();  // Remove the last '&'
+    }
+
+    return result;
+}
+
+std::string GetCreaturesLists() {
+    logger::info("Writing unlocked creatures list");
+    std::unordered_map<std::string, std::unordered_map<std::string, std::vector<std::string>>> categoryCreatureMap;
+
+    for (const auto& [variant, info] : VariantMap) {
+        if (BestiaryDataMap.find(variant) != BestiaryDataMap.end()) {
+            const CreatureData& data = BestiaryDataMap[variant];
+            categoryCreatureMap[info.category][info.creature].push_back(variant + "#" + std::to_string(data.kills) +
+                                                                        "#" + std::to_string(data.summons) + "#" +
+                                                                        std::to_string(data.transformations));
+        }
+    }
+
+    std::ostringstream creaturesListFull;
+
+    for (const auto& [category, creatures] : categoryCreatureMap) {
+        std::ostringstream creaturesListJoin;
+        for (const auto& [creatureName, variants] : creatures) {
+            std::ostringstream variantsListJoin;
+            for (const auto& variant : variants) {
+                variantsListJoin << variant << "@";
+            }
+            std::string variantsStr = variantsListJoin.str();
+            if (!variantsStr.empty()) {
+                variantsStr.pop_back();  // Remove the last '@'
+                creaturesListJoin << creatureName << "_" << variantsStr << ",";
+            }
+        }
+        std::string creaturesStr = creaturesListJoin.str();
+        if (!creaturesStr.empty()) {
+            creaturesStr.pop_back();  // Remove the last ','
+            creaturesListFull << category << ":" << creaturesStr << "&";
+        }
+    }
+
+    std::string result = creaturesListFull.str();
+    if (!result.empty()) {
+        result.pop_back();  // Remove the last '&'
+    }
+
+    return result;
+}
+
+std::string GetTranslatedName(std::string creatureName) {
+    std::transform(creatureName.begin(), creatureName.end(), creatureName.begin(), ::toupper);
+    auto it = VariantMap.find(creatureName);
+    if (it != VariantMap.end()) {
+        std::string locName = it->second.localizedName;
+        return locName;
+    } else {
+        logger::warn("Creature name {} not found in VariantMap", creatureName);
+        return creatureName;
+    }
 }

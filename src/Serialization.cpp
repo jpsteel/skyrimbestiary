@@ -3,6 +3,7 @@
 void RevertCallback(SKSE::SerializationInterface*) {
     logger::info("RevertCallback triggered.");
     BestiaryDataMap.clear();
+    lastEntry.clear();
     hintShown = false;
 }
 
@@ -10,6 +11,11 @@ void SaveCallback(SKSE::SerializationInterface* intfc) {
     logger::info("SaveCallback triggered.");
     intfc->OpenRecord('BSTY', DATA_VERSION);
     Serialize(intfc);
+
+    intfc->OpenRecord('LAST', DATA_VERSION);  // New record for lastEntry
+    uint32_t length = static_cast<uint32_t>(lastEntry.size());
+    intfc->WriteRecordData(&length, sizeof(length));
+    intfc->WriteRecordData(lastEntry.data(), length);
 
     intfc->OpenRecord('HSHN', DATA_VERSION);
     intfc->WriteRecordData(&hintShown, sizeof(hintShown));
@@ -23,6 +29,16 @@ void LoadCallback(SKSE::SerializationInterface* intfc) {
             logger::info("Deserializing record 'BSTY' with version {}", version);
             if (!Deserialize(intfc, version)) {
                 logger::error("Failed to deserialize BestiaryDataMap");
+            }
+        } else if (type == 'LAST') {
+            logger::info("Deserializing record 'LAST' with version {}", version);
+            if (!intfc->ReadRecordData(&length, sizeof(length))) {
+                logger::error("Failed to read length of lastEntry");
+                continue;
+            }
+            lastEntry.resize(length);
+            if (!intfc->ReadRecordData(lastEntry.data(), length)) {
+                logger::error("Failed to read lastEntry");
             }
         } else if (type == 'HSHN') {
             logger::info("Deserializing record 'HSHN' with version {}", version);

@@ -12,7 +12,7 @@ class EventProcessor : public RE::BSTEventSink<RE::TESActivateEvent>,
                        public RE::BSTEventSink<RE::TESSpellCastEvent>,
                        public RE::BSTEventSink<RE::TESQuestStageEvent>,
                        public RE::BSTEventSink<RE::InputEvent*>,
-                       public RE::BSTEventSink<RE::MenuOpenCloseEvent> {
+                       public RE::BSTEventSink<RE::MenuOpenCloseEvent>{
 public:
     static EventProcessor* GetSingleton() {
         static EventProcessor instance;
