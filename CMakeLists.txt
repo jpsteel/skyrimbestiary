@@ -8,7 +8,7 @@ cmake_minimum_required(VERSION 3.21)
 
 # [BEGIN set_project_name]
 # Set your project name. This will be the name of your SKSE .dll file.
-project(DragonbornsBestiary VERSION 1.2.0 LANGUAGES CXX)
+project(DragonbornsBestiary VERSION 1.4.0 LANGUAGES CXX)
 
 # [END set_project_name]
 
@@ -43,7 +43,9 @@ add_commonlibsse_plugin(${PROJECT_NAME} SOURCES src/main.cpp
     src/EventProcessor.cpp
     src/Serialization.cpp
     src/Utility.cpp
-    src/PapyrusFunctions.cpp) # <--- specifies plugin.cpp
+    src/BestiaryMenu.cpp
+    src/HUDWidget.cpp
+    src/Sync.cpp) # <--- specifies plugin.cpp
 target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_23) # <--- use C++23 standard
 target_precompile_headers(${PROJECT_NAME} PRIVATE src/PCH.h) # <--- PCH.h is required!
 
