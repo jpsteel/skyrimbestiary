@@ -70,18 +70,17 @@ class BestiaryMenu extends MovieClip
 	var aCurrentRoaster = new Array();
 	var iCurrentState:Number;
 	var iVariants:Number;
-	var iVariantIndex:Number;
+	var iVariantIndex:Number = 0;
 	var bUpdated:Boolean;
-	var sCurrentVariantCategory:String;
+	var sCurrentVariantCategory:String = "";
 	var sCurrentCategory:String;
-	var sCurrentCreature:Object;
+	var sCurrentCreature:Object = {name: "", id:"UNDEFINED"};
 	var sCurrentVariant:Object;
 	
 	var menuShown = false;
 	var menuReady = false;
 	var bMuteScroll = true;
 
-	var menuHotkey:Number;
 	var usingGamepad:Boolean;
 	var resistanceConfig:String;
 
@@ -251,14 +250,10 @@ class BestiaryMenu extends MovieClip
 		if (GlobalFunc.IsKeyPressed(details) && this.menuShown)
 		{
 			if (details.navEquivalent == NavigationCode.RIGHT) {
-					details.navEquivalent = NavigationCode.ENTER;
+				details.navEquivalent = NavigationCode.ENTER;
 			}
 			
-			if (details.navEquivalent == gfx.ui.NavigationCode.GAMEPAD_B || details.navEquivalent == gfx.ui.NavigationCode.TAB || details.navEquivalent == gfx.ui.NavigationCode.GAMEPAD_BACK || details.skseKeycode == menuHotkey)
-			{
-				this.CloseMenu();
-			}
-			else if (details.navEquivalent == NavigationCode.PAGE_UP || details.navEquivalent == NavigationCode.GAMEPAD_L2)
+			if (details.navEquivalent == NavigationCode.PAGE_UP || details.navEquivalent == NavigationCode.GAMEPAD_L2)
 			{
 				scrollbar.scrollUp();
 				bHandledInput = true;
@@ -302,12 +297,12 @@ class BestiaryMenu extends MovieClip
 				GameDelegate.call("PlaySound",["UIMenuFocus"]);
 				bHandledInput = true;
 			}
-			else if ((details.navEquivalent == NavigationCode.GAMEPAD_L1 || details.skseKeycode == 16) && VariantSelector_mc._visible == true)
+			else if ((details.navEquivalent == NavigationCode.GAMEPAD_L1 || details.code == 81) && VariantSelector_mc._visible == true)
 			{
 				onVariantButtonClick("prev")
 				bHandledInput = true;
 			}
-			else if ((details.navEquivalent == NavigationCode.GAMEPAD_R1 || details.skseKeycode == 19) && VariantSelector_mc._visible == true)
+			else if ((details.navEquivalent == NavigationCode.GAMEPAD_R1 || details.code == 82) && VariantSelector_mc._visible == true)
 			{
 				onVariantButtonClick("next")
 				bHandledInput = true;
@@ -492,18 +487,6 @@ class BestiaryMenu extends MovieClip
 		}else{
 			TransformcountWidget._visible = false;
 		}
-	}
-
-	function CloseMenu():Void
-	{
-		SendLastEntry();
-		skse.SendModEvent("BestiaryMenu","CloseMenuNoChoice");
-		var _loc2_ = mx.utils.Delegate.create(this, function ()
-		{
-			skse.CloseMenu("CustomMenu");
-		});
-		skyui.util.Tween.LinearTween(this,"_alpha",this._alpha,0,0.3,_loc2_());
-		GameDelegate.call("PlaySound",["UIJournalClose"]);
 	}
 
 	function DoHideMenu():Void
@@ -1296,11 +1279,6 @@ class BestiaryMenu extends MovieClip
 
 		_platform = a_platform;
 	}
-
-	function getHotkey(hotkey)
-	{
-		menuHotkey = hotkey;
-	}
 	
 	function getGamepadStatus(gamepad)
 	{
@@ -1405,10 +1383,9 @@ class BestiaryMenu extends MovieClip
 		lv.load(path);
 	}
 	
-	function SendLastEntry():Void{
+	function sendLastEntry():String{
 		var lastEntry
-		lastEntry = sCurrentVariantCategory + "," + sCurrentCreature.name + "," + sCurrentCreature.id + "," + iVariantIndex;
-		skse.SendModEvent("SaveLastEntry",lastEntry);
+		return lastEntry = sCurrentVariantCategory + "," + sCurrentCreature.name + "," + sCurrentCreature.id + "," + iVariantIndex;
 	}
 	
 	function getLastEntry(lastEntry):Void{
