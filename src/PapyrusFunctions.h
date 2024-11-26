@@ -1,13 +1,13 @@
-#pragma once
+#ifndef PAPYRUSFUNCTIONS_H
+#define PAPYRUSFUNCTIONS_H
+
 #include <RE/Skyrim.h>
 #include <SKSE/SKSE.h>
 
 bool PapyrusFunctions(RE::BSScript::IVirtualMachine* vm);
+bool UnlockEntry(RE::StaticFunctionTag*, RE::BSFixedString creatureKeyword);
+void Open(RE::StaticFunctionTag*);
+void SetBlocked(RE::StaticFunctionTag*, bool blocked);
+bool IsBlocked(RE::StaticFunctionTag*);
 
-std::string debugGetAllCreaturesLists(RE::StaticFunctionTag*);
-std::string getCreaturesLists(RE::StaticFunctionTag*);
-std::string getTranslatedName(RE::StaticFunctionTag*, RE::BSFixedString creatureName);
-int getMenuHotkey(RE::StaticFunctionTag*);
-int getWidgetX(RE::StaticFunctionTag*);
-int getWidgetY(RE::StaticFunctionTag*);
-int getEnableWidget(RE::StaticFunctionTag*);
+#endif  // PAPYRUSFUNCTIONS_H

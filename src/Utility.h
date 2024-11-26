@@ -26,6 +26,7 @@ extern int enableMenuOption;
 extern std::string tutorialMessage;
 extern bool hintShown;
 extern std::string resistanceModConfig;
+extern bool isBestiaryBlocked;
 
 struct VariantInfo {
     std::string creature;

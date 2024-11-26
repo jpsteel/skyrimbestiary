@@ -23,6 +23,7 @@ int enableMenuOption;
 std::string tutorialMessage;
 std::string resistanceModConfig;
 bool hintShown = false;
+bool isBestiaryBlocked = false;
 const std::string INI_FILE_PATH = "Data/Dragonborns Bestiary.ini";
 
 
@@ -51,13 +52,13 @@ void LoadDataFromINI() {
         return;
     }
  
-    const char* keycodeStr = ini.GetValue("General", "iKeycode", "0");
-    const char* widget_x = ini.GetValue("General", "iBestiaryWidget_X", "0");
-    const char* widget_y = ini.GetValue("General", "iBestiaryWidget_Y", "0");
-    const char* widget_scale = ini.GetValue("General", "iBestiaryWidgetScale", "0");
-    const char* enable_widget = ini.GetValue("General", "iEnableWidget", "0");
+    const char* keycodeStr = ini.GetValue("General", "iKeycode", "37");
+    const char* widget_x = ini.GetValue("General", "iBestiaryWidget_X", "1360");
+    const char* widget_y = ini.GetValue("General", "iBestiaryWidget_Y", "250");
+    const char* widget_scale = ini.GetValue("General", "iBestiaryWidgetScale", "1");
+    const char* enable_widget = ini.GetValue("General", "iEnableWidget", "1");
     const char* enable_menu_option = ini.GetValue("General", "iEnableSystemMenuOption", "0");
-    const char* tutorial_msg = ini.GetValue("General", "sTutorialMessage", "0");
+    const char* tutorial_msg = ini.GetValue("General", "sTutorialMessage", "Press [{}] to access your bestiary.");
     menuHotkey = std::stoi(keycodeStr);
     widgetX = std::stoi(widget_x);
     widgetY = std::stoi(widget_y);

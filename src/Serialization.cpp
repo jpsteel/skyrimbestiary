@@ -5,6 +5,7 @@ void RevertCallback(SKSE::SerializationInterface*) {
     BestiaryDataMap.clear();
     lastEntry.clear();
     hintShown = false;
+    isBestiaryBlocked = false;
 }
 
 void SaveCallback(SKSE::SerializationInterface* intfc) {
@@ -19,6 +20,9 @@ void SaveCallback(SKSE::SerializationInterface* intfc) {
 
     intfc->OpenRecord('HSHN', DATA_VERSION);
     intfc->WriteRecordData(&hintShown, sizeof(hintShown));
+    
+    intfc->OpenRecord('BLCK', DATA_VERSION);
+    intfc->WriteRecordData(&isBestiaryBlocked, sizeof(isBestiaryBlocked));
 }
 
 void LoadCallback(SKSE::SerializationInterface* intfc) {
@@ -46,6 +50,14 @@ void LoadCallback(SKSE::SerializationInterface* intfc) {
                 intfc->ReadRecordData(&hintShown, sizeof(hintShown));
             } else {
                 logger::error("Incorrect data length for hintShown");
+            }
+        } else if (type == 'BLCK') {
+            logger::info("Deserializing record 'BLCK' with version {}", version); 
+            if (length == sizeof(isBestiaryBlocked)) { 
+                intfc->ReadRecordData(&isBestiaryBlocked, sizeof(isBestiaryBlocked)); 
+                logger::info("isBestiaryBlocked state: {}", isBestiaryBlocked); 
+            } else {
+                logger::error("Incorrect data length for isBestiaryBlocked"); 
             }
         } else {
             logger::warn("Unknown record type: 0x{:X}", type);

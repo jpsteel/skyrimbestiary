@@ -1,118 +1,72 @@
 #include "PapyrusFunctions.h"
-
-#include <nlohmann/json.hpp>
-
 #include "Utility.h"
+#include "Scaleform.h"
+#include "BestiaryMenu.h"
+#include <RE/Skyrim.h>
+#include <SKSE/Trampoline.h>
+#include <SKSE/SKSE.h>
+#include <SKSE/API.h>
 
 bool PapyrusFunctions(RE::BSScript::IVirtualMachine* vm) {
-    vm->RegisterFunction("debugGetAllCreaturesLists", "RPGUI_BestiaryQuestScript", debugGetAllCreaturesLists);
-    vm->RegisterFunction("getCreaturesLists", "RPGUI_BestiaryQuestScript", getCreaturesLists);
-    vm->RegisterFunction("getMenuHotkey", "RPGUI_BestiaryQuestScript", getMenuHotkey);
-    vm->RegisterFunction("getWidgetX", "RPGUI_BestiaryQuestScript", getWidgetX);
-    vm->RegisterFunction("getWidgetY", "RPGUI_BestiaryQuestScript", getWidgetY);
-    vm->RegisterFunction("getEnableWidget", "RPGUI_BestiaryQuestScript", getEnableWidget);
-    vm->RegisterFunction("getTranslatedName", "RPGUI_BestiaryWidgetQuestScript", getTranslatedName);
+    vm->RegisterFunction("UnlockEntry", "Bestiary", UnlockEntry);
+    vm->RegisterFunction("Open", "Bestiary", Open);
+    vm->RegisterFunction("SetBlocked", "Bestiary", SetBlocked);
+    vm->RegisterFunction("IsBlocked", "Bestiary", IsBlocked);
     return true;
 }
 
-std::string debugGetAllCreaturesLists(RE::StaticFunctionTag*) {
-    logger::info("Writing full creatures list (dev mode)");
-    std::unordered_map<std::string, std::unordered_map<std::string, std::vector<std::string>>> categoryCreatureMap;
-
-    for (const auto& [variant, info] : VariantMap) {
-        categoryCreatureMap[info.category][info.creature].push_back(variant + "#0#0#0");
+bool UnlockEntry(RE::StaticFunctionTag*, RE::BSFixedString creatureKeyword) {
+    if (creatureKeyword.empty()) {
+        logger::warn("[Papyrus] UnlockEntry called with an empty keyword.");
+        return false;
     }
 
-    std::ostringstream creaturesListFull;
+    std::string variant = creatureKeyword.c_str();
+    std::transform(variant.begin(), variant.end(), variant.begin(), ::toupper);
 
-    for (const auto& [category, creatures] : categoryCreatureMap) {
-        std::ostringstream creaturesListJoin;
-        for (const auto& [creatureName, variants] : creatures) {
-            std::ostringstream variantsListJoin;
-            for (const auto& variant : variants) {
-                variantsListJoin << variant << "@";
-            }
-            std::string variantsStr = variantsListJoin.str();
-            if (!variantsStr.empty()) {
-                variantsStr.pop_back();  // Remove the last '@'
-                creaturesListJoin << creatureName << "_" << variantsStr << ",";
-            }
-        }
-        std::string creaturesStr = creaturesListJoin.str();
-        if (!creaturesStr.empty()) {
-            creaturesStr.pop_back();  // Remove the last ','
-            creaturesListFull << category << ":" << creaturesStr << "&";
-        }
-    }
-
-    std::string result = creaturesListFull.str();
-    if (!result.empty()) {
-        result.pop_back();  // Remove the last '&'
-    }
-
-    return result;
-}
-
-std::string getCreaturesLists(RE::StaticFunctionTag*) {
-    logger::info("Writing unlocked creatures list");
-    std::unordered_map<std::string, std::unordered_map<std::string, std::vector<std::string>>> categoryCreatureMap;
-
-    for (const auto& [variant, info] : VariantMap) {
-        if (BestiaryDataMap.find(variant) != BestiaryDataMap.end()) {
-            const CreatureData& data = BestiaryDataMap[variant];
-            categoryCreatureMap[info.category][info.creature].push_back(variant + "#" + std::to_string(data.kills) +
-                                                                        "#" + std::to_string(data.summons) + "#" +
-                                                                        std::to_string(data.transformations));
-        }
-    }
-
-    std::ostringstream creaturesListFull;
-
-    for (const auto& [category, creatures] : categoryCreatureMap) {
-        std::ostringstream creaturesListJoin;
-        for (const auto& [creatureName, variants] : creatures) {
-            std::ostringstream variantsListJoin;
-            for (const auto& variant : variants) {
-                variantsListJoin << variant << "@";
-            }
-            std::string variantsStr = variantsListJoin.str();
-            if (!variantsStr.empty()) {
-                variantsStr.pop_back();  // Remove the last '@'
-                creaturesListJoin << creatureName << "_" << variantsStr << ",";
-            }
-        }
-        std::string creaturesStr = creaturesListJoin.str();
-        if (!creaturesStr.empty()) {
-            creaturesStr.pop_back();  // Remove the last ','
-            creaturesListFull << category << ":" << creaturesStr << "&";
-        }
-    }
-
-    std::string result = creaturesListFull.str();
-    if (!result.empty()) {
-        result.pop_back();  // Remove the last '&'
-    }
-
-    return result;
-}
-
-std::string getTranslatedName(RE::StaticFunctionTag*, RE::BSFixedString creatureName) {
-    std::string creature = creatureName.c_str();
-    std::transform(creature.begin(), creature.end(), creature.begin(), ::toupper);
-    auto it = VariantMap.find(creature);
+    auto it = VariantMap.find(variant);
     if (it != VariantMap.end()) {
-        std::string locName = it->second.localizedName;
-        return locName;
+        auto [creatureName, category, localizedName] = it->second;
+
+        auto [insertIt, inserted] = BestiaryDataMap.emplace(variant, CreatureData{0, 0, 0});
+        if (inserted) {
+            logger::info("[Papyrus] UnlockEntry: {} added to Bestiary with initial values", variant);
+
+            if (enableWidget == 1) {
+                DisplayEntryWithWait(variant);
+            }
+
+            CheckAndShowHint();
+            return true;
+        } else {
+            logger::debug("[Papyrus] UnlockEntry: {} is already unlocked in the Bestiary.", variant);
+            return true;
+        }
+    }
+
+    logger::warn("[Papyrus] UnlockEntry called for an unknown variant: {}", variant);
+    return false;
+}
+
+void Open(RE::StaticFunctionTag*) {
+    auto ui = RE::UI::GetSingleton();
+    if (!ui->IsMenuOpen(Scaleform::BestiaryMenu::MENU_NAME) && !ui->GameIsPaused() &&
+        !ui->IsMenuOpen(RE::DialogueMenu::MENU_NAME)) {
+        Scaleform::BestiaryMenu::Show();
+        logger::info("[Papyrus] Open: Successfully opened bestiary menu.");
+        return;
     } else {
-        logger::warn("Creature name {} not found in VariantMap", creature);
-        return creature;
+        logger::info("[Papyrus] Open: Couldn't open bestiary menu.");
+        return;
     }
 }
 
-int getMenuHotkey(RE::StaticFunctionTag*) { return menuHotkey; }
+void SetBlocked(RE::StaticFunctionTag*, bool block) {
+    isBestiaryBlocked = block;
+    logger::info("[Papyrus] SetBlocked: Bestiary block state set to: {}", block);
+}
 
-int getWidgetX(RE::StaticFunctionTag*) { return widgetX; }
-
-int getWidgetY(RE::StaticFunctionTag*) { return widgetY; }
-
-int getEnableWidget(RE::StaticFunctionTag*) { return enableWidget; }
+bool IsBlocked(RE::StaticFunctionTag*) { 
+    logger::info("[Papyrus] IsBlocked: {}", isBestiaryBlocked);
+    return isBestiaryBlocked; 
+}

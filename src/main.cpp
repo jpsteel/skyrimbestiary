@@ -12,6 +12,7 @@
 
 #include "EventProcessor.h"
 #include "Serialization.h"
+#include "PapyrusFunctions.h"
 #include "Utility.h"
 #include "BestiaryMenu.h"
 #include "HUDWidget.h"
@@ -63,6 +64,7 @@ extern "C" [[maybe_unused]] __declspec(dllexport) bool SKSEPlugin_Load(const SKS
     serialization->SetLoadCallback(LoadCallback);
     serialization->SetRevertCallback(RevertCallback);
 
+    SKSE::GetPapyrusInterface()->Register(PapyrusFunctions);
     SKSE::GetMessagingInterface()->RegisterListener(SKSEMessageHandler);
 
     LoadDataFromINI();

@@ -40,6 +40,10 @@ namespace Scaleform {
 
     void BestiaryMenu::Show() {
         auto uiMessageQueue = RE::UIMessageQueue::GetSingleton();
+        if (isBestiaryBlocked) {
+            logger::warn("Blocked attempt to open Bestiary, isBestiaryBlocked set to True.");
+            return;
+        }
         if (uiMessageQueue) {
             uiMessageQueue->AddMessage(BestiaryMenu::MENU_NAME, RE::UI_MESSAGE_TYPE::kShow, nullptr);
             RE::UIBlurManager::GetSingleton()->IncrementBlurCount();
