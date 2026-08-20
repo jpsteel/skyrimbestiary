@@ -22,15 +22,18 @@ void ProcessQueue() {
 
             isDisplayingEntry = true;
 
-            Scaleform::HUDWidget::DisplayEntry(variant);
+            // thread safety.
+            SKSE::GetTaskInterface()->AddUITask([variant]() {
+                Scaleform::HUDWidget::DisplayEntry(variant);
+                });
 
             std::this_thread::sleep_for(std::chrono::seconds(4));
 
             isDisplayingEntry = false;
-        } else {
+        }
+        else {
             lock.unlock();
-            std::this_thread::sleep_for(
-                std::chrono::milliseconds(100));
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
     }
 }

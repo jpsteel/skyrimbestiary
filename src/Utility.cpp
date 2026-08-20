@@ -51,7 +51,7 @@ void LoadDataFromINI() {
         logger::error("Failed to load INI file: {}", INI_FILE_PATH);
         return;
     }
- 
+
     const char* keycodeStr = ini.GetValue("General", "iKeycode", "37");
     const char* widget_x = ini.GetValue("General", "iBestiaryWidget_X", "1360");
     const char* widget_y = ini.GetValue("General", "iBestiaryWidget_Y", "250");
@@ -91,9 +91,9 @@ void PopulateVariantMap() {
                                     variant.find("_RESIST") == std::string::npos) {
                                     std::transform(variant.begin(), variant.end(), variant.begin(), ::toupper);
                                     std::string localizedName = GetVariantName(variantEntry.path().string());
-                                    VariantMap[variant] = {creatureName, category, localizedName};
+                                    VariantMap[variant] = { creatureName, category, localizedName };
                                     logger::debug("Added variant {} with localized name {} creature {} and category {}",
-                                                  variant, localizedName, creatureName, category);
+                                        variant, localizedName, creatureName, category);
                                 }
                             }
                         }
@@ -101,9 +101,11 @@ void PopulateVariantMap() {
                 }
             }
         }
-    } catch (const fs::filesystem_error& e) {
+    }
+    catch (const fs::filesystem_error& e) {
         logger::error("Filesystem error: {}", e.what());
-    } catch (const std::exception& e) {
+    }
+    catch (const std::exception& e) {
         logger::error("Error: {}", e.what());
     }
 }
@@ -121,7 +123,7 @@ void ShowTutorialHintText() {
         RE::GFxValue args[2];
         std::string key = GetKeyNameFromScanCode(menuHotkey);
 
-        std::string message = std::vformat(std::string_view{tutorialMessage}, std::make_format_args(key));
+        std::string message = std::vformat(std::string_view{ tutorialMessage }, std::make_format_args(key));
         args[0].SetString(message);
         args[1].SetBoolean(true);
         hud->uiMovie->Invoke("_root.HUDMovieBaseInstance.ShowTutorialHintText", nullptr, args, 2);
@@ -130,13 +132,15 @@ void ShowTutorialHintText() {
 
 void HideTutorialHintText() {
     std::this_thread::sleep_for(std::chrono::seconds(3));
-    auto hud = RE::UI::GetSingleton()->GetMenu(RE::HUDMenu::MENU_NAME);
-    if (hud) {
-        RE::GFxValue args[2];
-        args[0].SetString("");
-        args[1].SetBoolean(false);
-        hud->uiMovie->Invoke("_root.HUDMovieBaseInstance.ShowTutorialHintText", nullptr, args, 2);
-    }
+    SKSE::GetTaskInterface()->AddUITask([]() {
+        auto hud = RE::UI::GetSingleton()->GetMenu(RE::HUDMenu::MENU_NAME);
+        if (hud && hud->uiMovie) {
+            RE::GFxValue args[2];
+            args[0].SetString("");
+            args[1].SetBoolean(false);
+            hud->uiMovie->Invoke("_root.HUDMovieBaseInstance.ShowTutorialHintText", nullptr, args, 2);
+        }
+        });
 }
 
 void CheckAndShowHint() {
@@ -178,7 +182,8 @@ void AddMenuOption() {
     if (page.GetMember("CategoryList", &categoryList)) {
         RE::GFxValue entryList;
         if (categoryList.GetMember("entryList", &entryList)) {
-            std::uint32_t bestiaryIndex;
+            std::uint32_t bestiaryIndex = 0;
+            bool foundIndex = false;
 
             std::uint32_t length = entryList.GetArraySize();
             for (std::uint32_t index = 0; index < length; ++index) {
@@ -189,13 +194,14 @@ void AddMenuOption() {
                         std::string text = textVal.GetString();
                         if (text == "$HELP") {
                             bestiaryIndex = index;
+                            foundIndex = true;
                             break;
                         }
                     }
                 }
             }
 
-            if (bestiaryIndex) {
+            if (foundIndex) {
                 RE::GFxValue entryBestiary;
                 view->CreateObject(&entryBestiary);
                 entryBestiary.SetMember("text", SYSTEMMENU_ALIAS);
@@ -210,19 +216,22 @@ void AddMenuOption() {
 }
 
 void SetResistanceModConfig() {
-    if (CheckIfModIsLoaded("Resistances and Weaknesses.esp")) { 
+    if (CheckIfModIsLoaded("Resistances and Weaknesses.esp")) {
         logger::info("Found resistance mod: Resistances & Weaknesses");
         resistanceModConfig = "r&w";
         return;
-    } else if (CheckIfModIsLoaded("know_your_enemy2.esp")) {
+    }
+    else if (CheckIfModIsLoaded("know_your_enemy2.esp")) {
         logger::info("Found resistance mod: Know Your Enemy 2");
         resistanceModConfig = "kye2";
         return;
-    } else if (CheckIfModIsLoaded("Requiem.esp")) {
+    }
+    else if (CheckIfModIsLoaded("Requiem.esp")) {
         logger::info("Found resistance mod: Requiem");
         resistanceModConfig = "req";
         return;
-    } else {
+    }
+    else {
         logger::info("No resistance mod found, using Vanilla settings");
         resistanceModConfig = "vanilla";
         return;
@@ -232,7 +241,7 @@ void SetResistanceModConfig() {
 bool CheckIfModIsLoaded(RE::BSFixedString a_modname) {
     auto* dataHandler = RE::TESDataHandler::GetSingleton();
     const RE::TESFile* modInfo = dataHandler->LookupModByName(a_modname.data());
-    if (!modInfo || modInfo->compileIndex == 255) {  
+    if (!modInfo || modInfo->compileIndex == 255) {
         return false;
     }
     return true;
@@ -306,8 +315,8 @@ std::string GetCreaturesLists() {
         if (BestiaryDataMap.find(variant) != BestiaryDataMap.end()) {
             const CreatureData& data = BestiaryDataMap[variant];
             categoryCreatureMap[info.category][info.creature].push_back(variant + "#" + std::to_string(data.kills) +
-                                                                        "#" + std::to_string(data.summons) + "#" +
-                                                                        std::to_string(data.transformations));
+                "#" + std::to_string(data.summons) + "#" +
+                std::to_string(data.transformations));
         }
     }
 
@@ -347,7 +356,8 @@ std::string GetTranslatedName(std::string creatureName) {
     if (it != VariantMap.end()) {
         std::string locName = it->second.localizedName;
         return locName;
-    } else {
+    }
+    else {
         logger::warn("Creature name {} not found in VariantMap", creatureName);
         return creatureName;
     }

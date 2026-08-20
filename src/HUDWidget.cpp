@@ -17,12 +17,12 @@ namespace Scaleform {
             auto logger = new Logger<HUDWidget>();
             a_def->SetState(StateType::kLog, logger);
             logger->Release();
-        });
+            });
 
         inputContext = Context::kNone;
         depthPriority = 0;
         menuFlags.set(RE::UI_MENU_FLAGS::kAllowSaving, RE::UI_MENU_FLAGS::kCustomRendering,
-                      RE::UI_MENU_FLAGS::kAssignCursorToRenderer);
+            RE::UI_MENU_FLAGS::kAlwaysOpen);
     }
 
     void HUDWidget::Register() {
@@ -84,27 +84,35 @@ namespace Scaleform {
     void HUDWidget::DisplayEntry(std::string variant) {
         auto ui = RE::UI::GetSingleton();
         RE::GFxValue widget;
-        if (ui->GetMenu(HUDWidget::MENU_NAME)->uiMovie->GetVariable(&widget, "_root.BestiaryWidget_mc")) {
+        auto menu = ui->GetMenu(HUDWidget::MENU_NAME);
+        if (menu && menu->uiMovie &&
+            menu->uiMovie->GetVariable(&widget, "_root.BestiaryWidget_mc") && widget.IsObject()) {
             std::array<RE::GFxValue, 1> labelArgs;
             std::array<RE::GFxValue, 1> showArgs;
-            std::string label = GetTranslatedName(variant); 
+            std::string label = GetTranslatedName(variant);
             labelArgs[0] = label;
             showArgs[0] = true;
             widget.Invoke("getLabelText", nullptr, labelArgs.data(), labelArgs.size());
             widget.Invoke("ShowNotification", nullptr, showArgs.data(), showArgs.size());
-            std::jthread t(HideEntry); 
-            t.detach(); 
+            std::jthread t(HideEntry);
+            t.detach();
         }
     }
 
-    void HUDWidget::HideEntry() { 
+    void HUDWidget::HideEntry() {
         std::this_thread::sleep_for(std::chrono::seconds(3));
-        auto ui = RE::UI::GetSingleton();
-        RE::GFxValue widget;  
-        if (ui->GetMenu(HUDWidget::MENU_NAME)->uiMovie->GetVariable(&widget, "_root.BestiaryWidget_mc")) { 
-            std::array<RE::GFxValue, 1> hideArgs;
-            hideArgs[0] = false;  
-            widget.Invoke("ShowNotification", nullptr, hideArgs.data(), hideArgs.size());
-        }
+        SKSE::GetTaskInterface()->AddUITask([]() {
+            auto ui = RE::UI::GetSingleton();
+            if (!ui) return;
+            auto menu = ui->GetMenu(HUDWidget::MENU_NAME);
+            if (menu && menu->uiMovie) {
+                RE::GFxValue widget;
+                if (menu->uiMovie->GetVariable(&widget, "_root.BestiaryWidget_mc") && widget.IsObject()) {
+                    std::array<RE::GFxValue, 1> hideArgs;
+                    hideArgs[0] = false;
+                    widget.Invoke("ShowNotification", nullptr, hideArgs.data(), hideArgs.size());
+                }
+            }
+            });
     }
 }
