@@ -1,14 +1,3 @@
-#include <SimpleIni.h>
-#include <spdlog/sinks/basic_file_sink.h>
-
-#include <algorithm>
-#include <filesystem>
-#include <iostream>
-#include <string>
-#include <string_view>
-#include <unordered_map>
-#include <unordered_set>
-#include <vector>
 
 #include "EventProcessor.h"
 #include "Serialization.h"

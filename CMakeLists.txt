@@ -1,81 +1,79 @@
-# This file configures the "build" of this SKSE plugin
-# - how to compile the C++ plugin (in addition to settings found in CMakePresets.json)
-# - where to output the resulting .dll file
+if(NOT DEFINED ENV{COMMONLIB_SSE_FOLDER})
+  message(FATAL_ERROR "Missing COMMONLIB_SSE_FOLDER environment variable")
+endif()
 
-# It's recommended to set a minimum CMake version.
-# If you use CMake features from higher versions, update this to match.
+include(cmake/lib/copyOutputs.cmake)
+include(cmake/lib/automaticGameFolderOutput.cmake)
+include(cmake/lib/autoCollectSources.cmake)
+
+add_src_folder(src)
+add_include_folder(include)
+
+list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
+
 cmake_minimum_required(VERSION 3.21)
 
-# [BEGIN set_project_name]
-# Set your project name. This will be the name of your SKSE .dll file.
-project(DragonbornsBestiary VERSION 1.4.0 LANGUAGES CXX)
+set(PRODUCT_NAME "DragonbornsBestiary")
+project(${PRODUCT_NAME} VERSION 1.4.0.0 LANGUAGES CXX)
+set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
 
-# [END set_project_name]
+configure_file(
+        ${CMAKE_CURRENT_SOURCE_DIR}/cmake/version.rc.in
+        ${CMAKE_CURRENT_BINARY_DIR}/version.rc
+        @ONLY)
 
-# #
-# YOU DO NOT NEED TO EDIT ANYTHING BELOW HERE
-# #
+set(RESOURCE_FILE ${CMAKE_CURRENT_BINARY_DIR}/version.rc)
+set(RESOURCE_OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/version.res)
 
-# If you're not using a mod manager, you probably want the SKSE plugin to go
-# inside of your Skyrim "Data" folder.
-#
-# To do this automatically, set the `SKYRIM_FOLDER` environment variable
-# to the path of your Skyrim Special Edition folder
-if(DEFINED ENV{SKYRIM_FOLDER} AND IS_DIRECTORY "$ENV{SKYRIM_FOLDER}/Data")
-    set(OUTPUT_FOLDER "$ENV{SKYRIM_FOLDER}/Data")
-endif()
+add_custom_command(
+    OUTPUT ${RESOURCE_OUTPUT}
+    COMMAND rc /fo ${RESOURCE_OUTPUT} ${RESOURCE_FILE}
+    DEPENDS ${RESOURCE_FILE}
+)
 
-# If you're using Mod Organizer 2 or Vortex, you might want this to go inside
-# of your "mods" folder, inside of a subfolder named "<your mod>".
-#
-# To do this automatically, set the `SKYRIM_MODS_FOLDER` environment variable
-# to the path of your "mods" folder
-if(DEFINED ENV{SKYRIM_MODS_FOLDER} AND IS_DIRECTORY "$ENV{SKYRIM_MODS_FOLDER}")
-    set(OUTPUT_FOLDER "$ENV{SKYRIM_MODS_FOLDER}/${PROJECT_NAME}")
-endif()
+add_custom_target(Resource ALL DEPENDS ${RESOURCE_OUTPUT})
 
-# Otherwise, you can set OUTPUT_FOLDER to any place you'd like :)
-# set(OUTPUT_FOLDER "C:/path/to/any/folder")
+set(ENABLE_SKYRIM_SE ON CACHE BOOL " " FORCE)
+set(ENABLE_SKYRIM_AE ON CACHE BOOL " " FORCE)
+set(ENABLE_SKYRIM_VR ON CACHE BOOL " " FORCE)
+set(BUILD_TESTS OFF CACHE BOOL " " FORCE)
 
-# Setup your SKSE plugin as an SKSE plugin!
-find_package(CommonLibSSE CONFIG REQUIRED)
-add_commonlibsse_plugin(${PROJECT_NAME} SOURCES src/main.cpp
-    src/EventProcessor.cpp
-    src/Serialization.cpp
-    src/Utility.cpp
-    src/BestiaryMenu.cpp
-    src/HUDWidget.cpp
-    src/Sync.cpp
-    src/PapyrusFunctions.cpp) # <--- specifies plugin.cpp
-target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_23) # <--- use C++23 standard
-target_precompile_headers(${PROJECT_NAME} PRIVATE src/PCH.h) # <--- PCH.h is required!
+add_subdirectory("$ENV{COMMONLIB_SSE_FOLDER}" ${CMAKE_CURRENT_BINARY_DIR}/_deps/clib-build)
+get_target_property(COMMONLIB_SRC_DIR CommonLibSSE SOURCE_DIR)
 
-# When your SKSE .dll is compiled, this will automatically copy the .dll into your mods folder.
-# Only works if you configure DEPLOY_ROOT above (or set the SKYRIM_MODS_FOLDER environment variable)
-if(DEFINED OUTPUT_FOLDER)
-    # If you specify an <OUTPUT_FOLDER> (including via environment variables)
-    # then we'll copy your mod files into Skyrim or a mod manager for you!
+file(
+  GLOB_RECURSE
+  sources
+  ${CMAKE_CURRENT_BINARY_DIR}/version.rc
+  ${sources}
+)
 
-    # Copy the SKSE plugin .dll files into the SKSE/Plugins/ folder
-    set(DLL_FOLDER "${OUTPUT_FOLDER}/SKSE/Plugins")
+source_group(
+  TREE ${CMAKE_CURRENT_SOURCE_DIR}
+  FILES ${headers} ${sources}
+)
 
-    message(STATUS "SKSE plugin output folder: ${DLL_FOLDER}")
+set(BUILD_TESTS OFF)
+include(${COMMONLIB_SRC_DIR}/cmake/CommonLibSSE.cmake)
 
-    add_custom_command(
-        TARGET "${PROJECT_NAME}"
-        POST_BUILD
-        COMMAND "${CMAKE_COMMAND}" -E make_directory "${DLL_FOLDER}"
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:${PROJECT_NAME}>" "${DLL_FOLDER}/$<TARGET_FILE_NAME:${PROJECT_NAME}>"
-        VERBATIM
-    )
+add_commonlibsse_plugin(
+  ${PROJECT_NAME}
+  SOURCES ${headers} ${sources}
+)
+target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_23)
+target_precompile_headers(${PROJECT_NAME} PRIVATE include/PCH.h)
+target_include_directories(
+	${PROJECT_NAME}
+	PRIVATE
+	${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+target_compile_definitions(${PROJECT_NAME} PRIVATE IS_HOST_PLUGIN)
 
-    # If you perform a "Debug" build, also copy .pdb file (for debug symbols)
-    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-        add_custom_command(
-            TARGET "${PROJECT_NAME}"
-            POST_BUILD
-            COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_PDB_FILE:${PROJECT_NAME}>" "${DLL_FOLDER}/$<TARGET_PDB_FILE_NAME:${PROJECT_NAME}>"
-            VERBATIM
-        )
-    endif()
-endif()
+set(wildlander_output false)
+set(steam_owrt_output false)
+set(steam_mods_output true)
+set(lorerim_mods_output false)
+set(lorerim3_mods_output true)
+automaticGameFolderOutput(wildlander_output, steam_owrt_output, steam_mods_output lorerim_mods_output lorerim3_mods_output)

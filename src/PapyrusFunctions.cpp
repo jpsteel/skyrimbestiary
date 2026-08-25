@@ -3,7 +3,6 @@
 #include "Scaleform.h"
 #include "BestiaryMenu.h"
 #include <RE/Skyrim.h>
-#include <SKSE/Trampoline.h>
 #include <SKSE/SKSE.h>
 #include <SKSE/API.h>
 

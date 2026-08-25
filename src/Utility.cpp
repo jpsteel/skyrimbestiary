@@ -4,7 +4,6 @@
 
 #include <algorithm>
 #include <filesystem>
-#include <iostream>
 #include <nlohmann/json.hpp>
 #include "KeyMapping.h"
 #include "Sync.h"

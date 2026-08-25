@@ -1,9 +1,13 @@
 {
     "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+    "name": "dragonbornsbestiary",
+    "version-string": "1.4.0.0",
     "dependencies": [
-      "commonlibsse-ng",
-      "simpleini",
-      "nlohmann-json",
-      "xbyak"
-    ]
+        "spdlog",
+        "rapidcsv",
+        "directxtk",
+        "simpleini",
+        "nlohmann-json"
+    ],
+    "builtin-baseline": "ee12231b20c95013c6638d845d04c91559a1d1ff"
 }

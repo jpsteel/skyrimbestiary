@@ -5,16 +5,30 @@
 
 RE::BSEventNotifyControl EventProcessor::ProcessEvent(const RE::TESActivateEvent* event,
     RE::BSTEventSource<RE::TESActivateEvent>*) {
-    RE::TESBoundObject* actionBase = event->actionRef.get()->GetBaseObject();
-    RE::TESBoundObject* targetBase = event->objectActivated.get()->GetBaseObject();
+    if (!event) {
+        return RE::BSEventNotifyControl::kContinue;
+    }
+
+    auto* actionRef = event->actionRef.get();
+    auto* objectActivated = event->objectActivated.get();
+    if (!actionRef || !objectActivated) {
+        return RE::BSEventNotifyControl::kContinue;
+    }
+
+    RE::TESBoundObject* actionBase = actionRef->GetBaseObject();
+    RE::TESBoundObject* targetBase = objectActivated->GetBaseObject();
+    if (!actionBase || !targetBase) {
+        return RE::BSEventNotifyControl::kContinue;
+    }
+
     if (actionBase->IsPlayer()) {
         std::string factionEditorID = "RPGUI_BestiaryAddEntryOnTalkFaction";
         RE::TESForm* recForm = RE::TESForm::LookupByEditorID(factionEditorID);
         RE::TESFaction* recFaction = skyrim_cast<RE::TESFaction*>(recForm);
 
         if (targetBase->Is(RE::FormType::NPC)) {
-            auto actor = event->objectActivated.get()->As<RE::Actor>();
-            if (recFaction && actor->IsInFaction(recFaction)) {
+            auto actor = objectActivated->As<RE::Actor>();
+            if (actor && recFaction && actor->IsInFaction(recFaction)) {
                 logger::debug("Player activated {}, who is a member of RPGUI_BestiaryAddEntryOnTalkFaction faction",
                     targetBase->GetName());
                 getBestiaryKeywords(targetBase);
@@ -26,6 +40,10 @@ RE::BSEventNotifyControl EventProcessor::ProcessEvent(const RE::TESActivateEvent
 
 RE::BSEventNotifyControl EventProcessor::ProcessEvent(const RE::TESDeathEvent* event,
     RE::BSTEventSource<RE::TESDeathEvent>*) {
+    if (!event) {
+        return RE::BSEventNotifyControl::kContinue;
+    }
+
     auto victim = event->actorDying.get();
     auto killer = event->actorKiller.get();
     uint8_t state = event->dead;
@@ -34,15 +52,18 @@ RE::BSEventNotifyControl EventProcessor::ProcessEvent(const RE::TESDeathEvent* e
         return RE::BSEventNotifyControl::kContinue;
     }
 
-    RE::TESBoundObject* victimBase = event->actorDying.get()->GetBaseObject();
-    RE::TESBoundObject* killerBase = event->actorKiller.get()->GetBaseObject();
+    RE::TESBoundObject* victimBase = victim->GetBaseObject();
+    RE::TESBoundObject* killerBase = killer->GetBaseObject();
+    if (!victimBase || !killerBase) {
+        return RE::BSEventNotifyControl::kContinue;
+    }
 
     std::string factionEditorID = "RPGUI_BestiaryAddEntryOnDeathUnique";
     RE::TESForm* recForm = RE::TESForm::LookupByEditorID(factionEditorID);
     RE::TESFaction* recFaction = skyrim_cast<RE::TESFaction*>(recForm);
 
-    auto victimActor = event->actorDying.get()->As<RE::Actor>();
-    if (killerBase->IsPlayer() || victimActor->IsInFaction(recFaction)) {
+    auto victimActor = victim->As<RE::Actor>();
+    if (killerBase->IsPlayer() || (recFaction && victimActor && victimActor->IsInFaction(recFaction))) {
         logger::debug("Player killed {}", victimBase->GetName());
         auto addedVariants = getBestiaryKeywords(victimBase);
         for (const auto& variant : addedVariants) {
@@ -219,7 +240,7 @@ RE::BSEventNotifyControl EventProcessor::ProcessEvent(const RE::MenuOpenCloseEve
 
 RE::BSEventNotifyControl EventProcessor::ProcessEvent(RE::InputEvent* const* eventPtr,
     RE::BSTEventSource<RE::InputEvent*>*) {
-    if (!eventPtr || !*eventPtr || !RE::Main::GetSingleton()->gameActive) {
+    if (!eventPtr || !*eventPtr || !RE::Main::GetSingleton()->GetRuntimeData().gameActive) {
         return RE::BSEventNotifyControl::kContinue;
     }
 
@@ -328,13 +349,26 @@ RE::BSEventNotifyControl EventProcessor::ProcessEvent(RE::InputEvent* const* eve
 
 std::vector<std::string> EventProcessor::getBestiaryKeywords(RE::TESBoundObject* creature) {
     std::vector<std::string> addedVariants;
+    if (!creature) {
+        return addedVariants;
+    }
+
     auto keywordForm = creature->As<RE::BGSKeywordForm>();
-    if (keywordForm) {
+    if (keywordForm && keywordForm->keywords) {
         std::unordered_set<std::string> variantsToAdd;
 
         for (uint32_t i = 0; i < keywordForm->numKeywords; ++i) {
             RE::BGSKeyword* keyword = keywordForm->keywords[i];
-            std::string kwrd = keyword->GetFormEditorID();
+            if (!keyword) {
+                continue;
+            }
+
+            const char* keywordEditorID = keyword->GetFormEditorID();
+            if (!keywordEditorID) {
+                continue;
+            }
+
+            std::string kwrd = keywordEditorID;
             if (kwrd.find("Bestiary") != std::string::npos) {
                 std::string variant = kwrd.substr(8);
                 std::transform(variant.begin(), variant.end(), variant.begin(), ::toupper);
