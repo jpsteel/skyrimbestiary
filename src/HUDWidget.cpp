@@ -22,7 +22,7 @@ namespace Scaleform {
         inputContext = Context::kNone;
         depthPriority = 0;
         menuFlags.set(RE::UI_MENU_FLAGS::kAllowSaving, RE::UI_MENU_FLAGS::kCustomRendering,
-                      RE::UI_MENU_FLAGS::kAssignCursorToRenderer);
+                      RE::UI_MENU_FLAGS::kAssignCursorToRenderer, RE::UI_MENU_FLAGS::kAlwaysOpen);
     }
 
     void HUDWidget::Register() {
@@ -57,17 +57,23 @@ namespace Scaleform {
             logger::debug("Bestiary Widget not open, couldn't set position");
             return;
         }
-        RE::GFxValue widget;
-        std::array<RE::GFxValue, 2> posArgs;
-        std::array<RE::GFxValue, 1> scaleArgs;
-        posArgs[0] = widgetX;
-        posArgs[1] = widgetY;
-        scaleArgs[0] = widgetScale;
-        ui->GetMenu(HUDWidget::MENU_NAME)->uiMovie->GetVariable(&widget, "_root.BestiaryWidget_mc");
-        widget.Invoke("setPosition", nullptr, posArgs.data(), posArgs.size());
-        widget.Invoke("setScale", nullptr, scaleArgs.data(), scaleArgs.size());
+        auto menu = ui->GetMenu(HUDWidget::MENU_NAME);
+        if (!menu || !menu->uiMovie) {
+            return;
+        }
 
-        logger::info("Set widget position to X {} and Y {}, scale to {}", widgetX, widgetY, widgetScale);
+        RE::GFxValue widget;
+        if (!menu->uiMovie->GetVariable(&widget, "_root.BestiaryWidget_mc") ||
+            !widget.IsObject()) {
+            return;
+        }
+
+        UpdateUltraWide(*menu->uiMovie.get());
+
+        std::array<RE::GFxValue, 2> position;
+        position[0] = g_isUltraWide ? 1570 : 1360;
+        position[1] = 250;
+        widget.Invoke("setPosition", nullptr, position.data(), position.size());
     }
 
     void HUDWidget::Accept(RE::FxDelegateHandler::CallbackProcessor* a_cbReg) {
@@ -82,9 +88,15 @@ namespace Scaleform {
     }
 
     void HUDWidget::DisplayEntry(std::string variant) {
-        auto ui = RE::UI::GetSingleton();
+        auto* ui = RE::UI::GetSingleton();
+        if (!ui) {
+            return;
+        }
+
+        auto menu = ui->GetMenu(HUDWidget::MENU_NAME);
         RE::GFxValue widget;
-        if (ui->GetMenu(HUDWidget::MENU_NAME)->uiMovie->GetVariable(&widget, "_root.BestiaryWidget_mc")) {
+        if (menu && menu->uiMovie && menu->uiMovie->GetVariable(&widget, "_root.BestiaryWidget_mc") &&
+            widget.IsObject()) {
             std::array<RE::GFxValue, 1> labelArgs;
             std::array<RE::GFxValue, 1> showArgs;
             std::string label = GetTranslatedName(variant); 
@@ -99,12 +111,26 @@ namespace Scaleform {
 
     void HUDWidget::HideEntry() { 
         std::this_thread::sleep_for(std::chrono::seconds(3));
-        auto ui = RE::UI::GetSingleton();
-        RE::GFxValue widget;  
-        if (ui->GetMenu(HUDWidget::MENU_NAME)->uiMovie->GetVariable(&widget, "_root.BestiaryWidget_mc")) { 
-            std::array<RE::GFxValue, 1> hideArgs;
-            hideArgs[0] = false;  
-            widget.Invoke("ShowNotification", nullptr, hideArgs.data(), hideArgs.size());
+        auto* tasks = SKSE::GetTaskInterface();
+        if (!tasks) {
+            return;
         }
+
+        tasks->AddUITask([] {
+            auto* ui = RE::UI::GetSingleton();
+            if (!ui) {
+                return;
+            }
+
+            auto menu = ui->GetMenu(HUDWidget::MENU_NAME);
+            RE::GFxValue widget;
+            if (menu && menu->uiMovie &&
+                menu->uiMovie->GetVariable(&widget, "_root.BestiaryWidget_mc") &&
+                widget.IsObject()) {
+                std::array<RE::GFxValue, 1> hideArgs;
+                hideArgs[0] = false;
+                widget.Invoke("ShowNotification", nullptr, hideArgs.data(), hideArgs.size());
+            }
+        });
     }
 }

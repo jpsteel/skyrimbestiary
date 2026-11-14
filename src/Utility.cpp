@@ -15,11 +15,8 @@ namespace logger = SKSE::log;
 
 std::string lastEntry;
 int menuHotkey;
-int widgetX;
-int widgetY;
-float widgetScale;
+bool g_isUltraWide = false;
 int enableWidget;
-int enableMenuOption;
 std::string tutorialMessage;
 std::string resistanceModConfig;
 bool hintShown = false;
@@ -53,26 +50,21 @@ void LoadDataFromINI() {
     }
  
     const char* keycodeStr = ini.GetValue("General", "iKeycode", "37");
-    const char* widget_x = ini.GetValue("General", "iBestiaryWidget_X", "1360");
-    const char* widget_y = ini.GetValue("General", "iBestiaryWidget_Y", "250");
-    const char* widget_scale = ini.GetValue("General", "iBestiaryWidgetScale", "1");
     const char* enable_widget = ini.GetValue("General", "iEnableWidget", "1");
-    const char* enable_menu_option = ini.GetValue("General", "iEnableSystemMenuOption", "0");
     const char* tutorial_msg = ini.GetValue("General", "sTutorialMessage", "Press [{}] to access your bestiary.");
     menuHotkey = std::stoi(keycodeStr);
-    widgetX = std::stoi(widget_x);
-    widgetY = std::stoi(widget_y);
-    widgetScale = std::stof(widget_scale);
     enableWidget = std::stoi(enable_widget);
-    enableMenuOption = std::stoi(enable_menu_option);
     tutorialMessage = tutorial_msg;
     logger::debug("Loaded keycode: {}", keycodeStr);
-    logger::debug("Loaded widget x offset: {}", widget_x);
-    logger::debug("Loaded widget y offset: {}", widget_y);
-    logger::debug("Loaded widget scale: {}", widget_scale);
     logger::debug("Loaded widget enabled: {}", enable_widget);
-    logger::debug("Loaded menu option enabled: {}", enable_menu_option);
     logger::debug("Loaded tutorial message localization: {}", tutorial_msg);
+}
+
+void UpdateUltraWide(const RE::GFxMovieView& movie) {
+    RE::GViewport viewport{};
+    movie.GetViewport(&viewport);
+    g_isUltraWide = viewport.height > 0 &&
+        static_cast<float>(viewport.width) / viewport.height > 1.95f;
 }
 
 void PopulateVariantMap() {
@@ -90,10 +82,19 @@ void PopulateVariantMap() {
                                 if (variant.find("_LOOT") == std::string::npos &&
                                     variant.find("_RESIST") == std::string::npos) {
                                     std::transform(variant.begin(), variant.end(), variant.begin(), ::toupper);
-                                    std::string localizedName = GetVariantName(variantEntry.path().string());
-                                    VariantMap[variant] = {creatureName, category, localizedName};
+                                    const auto filePath = variantEntry.path().string();
+                                    std::string localizedName;
+                                    try {
+                                        localizedName = GetVariantName(filePath);
+                                    }
+                                    catch (const nlohmann::json::exception& e) {
+                                        logger::error("Skipping creature JSON '{}': {}", filePath, e.what());
+                                        continue;
+                                    }
+
+                                    VariantMap[variant] = { creatureName, category, localizedName };
                                     logger::debug("Added variant {} with localized name {} creature {} and category {}",
-                                                  variant, localizedName, creatureName, category);
+                                        variant, localizedName, creatureName, category);
                                 }
                             }
                         }
@@ -130,13 +131,25 @@ void ShowTutorialHintText() {
 
 void HideTutorialHintText() {
     std::this_thread::sleep_for(std::chrono::seconds(3));
-    auto hud = RE::UI::GetSingleton()->GetMenu(RE::HUDMenu::MENU_NAME);
-    if (hud) {
-        RE::GFxValue args[2];
-        args[0].SetString("");
-        args[1].SetBoolean(false);
-        hud->uiMovie->Invoke("_root.HUDMovieBaseInstance.ShowTutorialHintText", nullptr, args, 2);
+    auto* tasks = SKSE::GetTaskInterface();
+    if (!tasks) {
+        return;
     }
+
+    tasks->AddUITask([] {
+        auto* ui = RE::UI::GetSingleton();
+        if (!ui) {
+            return;
+        }
+
+        auto hud = ui->GetMenu(RE::HUDMenu::MENU_NAME);
+        if (hud && hud->uiMovie) {
+            RE::GFxValue args[2];
+            args[0].SetString("");
+            args[1].SetBoolean(false);
+            hud->uiMovie->Invoke("_root.HUDMovieBaseInstance.ShowTutorialHintText", nullptr, args, 2);
+        }
+    });
 }
 
 void CheckAndShowHint() {
@@ -157,58 +170,6 @@ std::string GetKeyNameFromScanCode(int scanCode) {
     return "Unknown";
 }
 
-void AddMenuOption() {
-    const auto menu = RE::UI::GetSingleton()->GetMenu<RE::JournalMenu>(RE::JournalMenu::MENU_NAME).get();
-    const auto view = menu ? menu->GetRuntimeData().systemTab.view : nullptr;
-    RE::GFxValue page;
-    if (!view || !view->GetVariable(&page, "_root.QuestJournalFader.Menu_mc.SystemFader.Page_mc")) {
-        logger::warn("Couldn't find _root.QuestJournalFader.Menu_mc.SystemFader.Page_mc");
-        return;
-    }
-    RE::GFxValue showModMenu;
-    if (page.GetMember("_showModMenu", &showModMenu) && showModMenu.GetBool() == false) {
-        std::array<RE::GFxValue, 1> args;
-        args[0] = true;
-        if (!page.Invoke("SetShowMod", nullptr, args.data(), args.size())) {
-            logger::warn("Couldn't invoke SetShowMod");
-            return;
-        }
-    }
-    RE::GFxValue categoryList;
-    if (page.GetMember("CategoryList", &categoryList)) {
-        RE::GFxValue entryList;
-        if (categoryList.GetMember("entryList", &entryList)) {
-            std::uint32_t bestiaryIndex;
-
-            std::uint32_t length = entryList.GetArraySize();
-            for (std::uint32_t index = 0; index < length; ++index) {
-                RE::GFxValue entry;
-                if (entryList.GetElement(index, &entry)) {
-                    RE::GFxValue textVal;
-                    if (entry.GetMember("text", &textVal)) {
-                        std::string text = textVal.GetString();
-                        if (text == "$HELP") {
-                            bestiaryIndex = index;
-                            break;
-                        }
-                    }
-                }
-            }
-
-            if (bestiaryIndex) {
-                RE::GFxValue entryBestiary;
-                view->CreateObject(&entryBestiary);
-                entryBestiary.SetMember("text", SYSTEMMENU_ALIAS);
-                entryList.SetElement(bestiaryIndex, entryBestiary);
-                categoryList.Invoke("InvalidateData");
-
-                return;
-            }
-        }
-    }
-    return;
-}
-
 void SetResistanceModConfig() {
     if (CheckIfModIsLoaded("Resistances and Weaknesses.esp")) { 
         logger::info("Found resistance mod: Resistances & Weaknesses");
@@ -222,6 +183,10 @@ void SetResistanceModConfig() {
         logger::info("Found resistance mod: Requiem");
         resistanceModConfig = "req";
         return;
+    } else if (CheckIfModIsLoaded("Skybane.esp")) {
+         logger::info("Found resistance mod: Skybane");
+         resistanceModConfig = "skb";
+         return;
     } else {
         logger::info("No resistance mod found, using Vanilla settings");
         resistanceModConfig = "vanilla";
@@ -307,7 +272,8 @@ std::string GetCreaturesLists() {
             const CreatureData& data = BestiaryDataMap[variant];
             categoryCreatureMap[info.category][info.creature].push_back(variant + "#" + std::to_string(data.kills) +
                                                                         "#" + std::to_string(data.summons) + "#" +
-                                                                        std::to_string(data.transformations));
+                                                                        std::to_string(data.transformations) + 
+                                                                        (data.unread ? "#1" : "#0"));
         }
     }
 

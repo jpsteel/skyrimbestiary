@@ -8,7 +8,7 @@ cmake_minimum_required(VERSION 3.21)
 
 # [BEGIN set_project_name]
 # Set your project name. This will be the name of your SKSE .dll file.
-project(DragonbornsBestiary VERSION 1.4.0 LANGUAGES CXX)
+project(DragonbornsBestiary VERSION 1.6.0 LANGUAGES CXX)
 
 # [END set_project_name]
 
@@ -38,7 +38,27 @@ endif()
 # set(OUTPUT_FOLDER "C:/path/to/any/folder")
 
 # Setup your SKSE plugin as an SKSE plugin!
-find_package(CommonLibSSE CONFIG REQUIRED)
+set(COMMONLIBSSE_NG_ROOT "" CACHE PATH "Path to CommonLibSSE-NG")
+
+if(NOT COMMONLIBSSE_NG_ROOT AND DEFINED ENV{COMMONLIBSSE_NG_ROOT})
+    set(COMMONLIBSSE_NG_ROOT "$ENV{COMMONLIBSSE_NG_ROOT}")
+endif()
+
+if(NOT EXISTS "${COMMONLIBSSE_NG_ROOT}/CMakeLists.txt")
+    message(FATAL_ERROR "Set COMMONLIBSSE_NG_ROOT to your CommonLibSSE-NG directory")
+endif()
+
+set(ENABLE_SKYRIM_SE ON CACHE BOOL "" FORCE)
+set(ENABLE_SKYRIM_AE ON CACHE BOOL "" FORCE)
+set(ENABLE_SKYRIM_VR ON CACHE BOOL "" FORCE)
+set(BUILD_TESTS OFF CACHE BOOL "" FORCE)
+
+add_subdirectory(
+    "${COMMONLIBSSE_NG_ROOT}"
+    "${CMAKE_CURRENT_BINARY_DIR}/commonlib"
+)
+
+include("${COMMONLIBSSE_NG_ROOT}/cmake/CommonLibSSE.cmake")
 add_commonlibsse_plugin(${PROJECT_NAME} SOURCES src/main.cpp
     src/EventProcessor.cpp
     src/Serialization.cpp

@@ -28,7 +28,7 @@ bool UnlockEntry(RE::StaticFunctionTag*, RE::BSFixedString creatureKeyword) {
     if (it != VariantMap.end()) {
         auto [creatureName, category, localizedName] = it->second;
 
-        auto [insertIt, inserted] = BestiaryDataMap.emplace(variant, CreatureData{0, 0, 0});
+        auto [insertIt, inserted] = BestiaryDataMap.emplace(variant, CreatureData{0, 0, 0, true});
         if (inserted) {
             logger::info("[Papyrus] UnlockEntry: {} added to Bestiary with initial values", variant);
 

@@ -25,6 +25,10 @@ class BestiaryMenu extends MovieClip
 	var CategoryList_mc:MovieClip;
 	var CreatureList:MovieClip;
 	var CreatureList_mc:MovieClip;
+	var MenuLeftSide:MovieClip;
+	var MenuLeftSide_mc:MovieClip;
+	var MenuRightSide:MovieClip;
+	var MenuRightSide_mc:MovieClip;
 	var KillcountWidget:MovieClip;
 	var KillcountWidget_mc:MovieClip;
 	var SummoncountWidget:MovieClip;
@@ -80,9 +84,13 @@ class BestiaryMenu extends MovieClip
 	var menuShown = false;
 	var menuReady = false;
 	var bMuteScroll = true;
+	var rightStickScrollDirection:Number = 0;
+	var nextRightStickScrollAt:Number = 0;
 
 	var usingGamepad:Boolean;
 	var resistanceConfig:String;
+	var imageWidth = 450;
+	var imageHeight = 450;
 
 	private var _saveDisabledList:Array;
 	private var _platform:Number;
@@ -101,20 +109,24 @@ class BestiaryMenu extends MovieClip
 		super();
 		FocusHandler.instance.setFocus(this,0);
 
-		CategoryList = CategoryList_mc;
-		CreatureList = CreatureList_mc;
-		KillcountWidget = KillcountWidget_mc;
-		SummoncountWidget = SummoncountWidget_mc;
-		TransformcountWidget = TransformcountWidget_mc;
+		MenuLeftSide = MenuLeftSide_mc;
+		MenuRightSide = MenuRightSide_mc;
+		CategoryList = MenuLeftSide.CategoryList_mc;
+		CreatureList = MenuLeftSide.CreatureList_mc;
+		KillcountWidget = MenuRightSide.KillcountWidget_mc;
+		SummoncountWidget = MenuRightSide.SummoncountWidget_mc;
+		TransformcountWidget = MenuRightSide.TransformcountWidget_mc;
 		ImageHolder = ImageHolder_mc;
-		LootBackground = LootBackground_mc;
+		LootBackground = MenuRightSide.LootBackground_mc;
 		ResistancePanel = ResistancePanel_mc;
 		WeaknessPanel = WeaknessPanel_mc;
 		NextButton = VariantSelector_mc.nextBtn;
 		PrevButton = VariantSelector_mc.prevBtn;
 		debugTextField = DebugText_mc.debugTextField;
-		creatureNameTextField = CreatureName_mc.textField;
-		lootTextField = LootTitle_mc.textField;
+		creatureNameTextField = MenuRightSide.CreatureName_mc.textField;
+		lootTextField = MenuRightSide.LootTitle_mc.textField;
+		CreatureDescription_mc = MenuRightSide.CreatureDescription_mc;
+		scrollbar = MenuRightSide.scrollbar;
 		creatureDescriptionTextField = CreatureDescription_mc.textField;
 
 		creatureNameTextField.text = "";
@@ -243,22 +255,54 @@ class BestiaryMenu extends MovieClip
 		}
 		//UpdateStateFocus(iCurrentState)  
 	}
+	
+	function onRightStickInput(x:Number, y:Number):Void
+	{
+		if (!menuShown || scrollbar == undefined) {
+			return;
+		}
+	
+		var direction:Number = y >= 0.5 ? 1 : (y <= -0.5 ? -1 : 0);
+		if (direction == 0) {
+			rightStickScrollDirection = 0;
+			return;
+		}
+	
+		var now:Number = getTimer();
+		if (direction == rightStickScrollDirection && now < nextRightStickScrollAt) {
+			return;
+		}
+	
+		rightStickScrollDirection = direction;
+		nextRightStickScrollAt = now + 120;
+	
+		if (direction > 0) {
+			scrollbar.scrollUp();
+		} else {
+			scrollbar.scrollDown();
+		}
+	}
 
 	function handleInput(details:InputDetails, pathToFocus:Array):Boolean
 	{
 		var bHandledInput: Boolean = false;
 		if (GlobalFunc.IsKeyPressed(details) && this.menuShown)
 		{
+			if (details.navEquivalent == NavigationCode.TAB || details.navEquivalent == NavigationCode.GAMEPAD_B)
+			{
+				CloseMenu();
+				return true;
+			}
 			if (details.navEquivalent == NavigationCode.RIGHT) {
 				details.navEquivalent = NavigationCode.ENTER;
 			}
 			
-			if (details.navEquivalent == NavigationCode.PAGE_UP || details.navEquivalent == NavigationCode.GAMEPAD_L2)
+			if (details.navEquivalent == NavigationCode.PAGE_UP)
 			{
 				scrollbar.scrollUp();
 				bHandledInput = true;
 			}
-			else if (details.navEquivalent == NavigationCode.PAGE_DOWN || details.navEquivalent == NavigationCode.GAMEPAD_R2)
+			else if (details.navEquivalent == NavigationCode.PAGE_DOWN)
 			{
 				scrollbar.scrollDown();
 				bHandledInput = true;
@@ -267,7 +311,7 @@ class BestiaryMenu extends MovieClip
 			{
 				_currentFocus.onItemPress();
 				_currentFocus = CreatureList;
-				Divider.gotoAndStop("Left");
+				MenuLeftSide.Divider.gotoAndStop("Left");
 				bHandledInput = true;
 			}
 			else if (details.navEquivalent == NavigationCode.ENTER && _currentFocus == CreatureList)
@@ -289,7 +333,7 @@ class BestiaryMenu extends MovieClip
 			{
 				_currentFocus = CategoryList;
 				GameDelegate.call("PlaySound",["UIMenuFocus"]);
-				Divider.gotoAndStop("Right");
+				MenuLeftSide.Divider.gotoAndStop("Right");
 				bHandledInput = true;
 			}
 			else if (details.navEquivalent == NavigationCode.LEFT && _currentFocus == CategoryList)
@@ -309,6 +353,11 @@ class BestiaryMenu extends MovieClip
 			}
 		}
 		return bHandledInput;
+	}
+	
+	function CloseMenu():Void
+	{
+		GameDelegate.call("CloseMenu", [sendLastEntry()]);
 	}
 
 	function onCategoryButtonPress(event:Object):Void
@@ -342,20 +391,21 @@ class BestiaryMenu extends MovieClip
 		if (iCurrentState == BestiaryMenu.MAIN_STATE)
 		{
 			var selectionId = event.entry.id.toUpperCase();
-			if (sCurrentCreature.id != selectionId){
+			if (String(sCurrentCreature.id).toUpperCase() != selectionId) {
 				GameDelegate.call("PlaySound",["UIMenuOK"]);
-				Divider.gotoAndStop("Left");
+				MenuLeftSide.Divider.gotoAndStop("Left");
 				for (var i in aCurrentRoaster){
 					if (aCurrentRoaster[i].base == selectionId){
 						iVariantIndex = 0;
 						sCurrentVariantCategory = sCurrentCategory;
-						HandleVariants(aCurrentRoaster[i].base, aCurrentRoaster[i].variants);
+						HandleVariants(aCurrentRoaster[i].base, aCurrentRoaster[i].variants, true);
 						break;
 					}
 				}
 				sCurrentCreature = event.entry;
-			}else{
-				GameDelegate.call("PlaySound",["UIMenuFocus"]);
+			} else if (sCurrentVariant != undefined &&
+					   sCurrentVariantCategory == sCurrentCategory) {
+				markVariantRead(sCurrentVariantCategory, selectionId, sCurrentVariant.id);
 			}
 		}
 	}
@@ -377,7 +427,7 @@ class BestiaryMenu extends MovieClip
 			if (_tempCreaturesList.length > 0){
 				var _tempCreatureName = _tempCreature.main.toUpperCase();
 				aCurrentRoaster.push({base:_tempCreatureName, variants:_tempCreaturesList});
-				setCreatureDisplayName(categoryName, _tempCreatureName);
+				setCreatureDisplayName(categoryName, _tempCreatureName, _tempCreaturesList);
 				_tempCreaturesList = [];
 			}
 		}
@@ -393,7 +443,7 @@ class BestiaryMenu extends MovieClip
 		}
 	}
 
-	function UpdateCreatureInfo(creatureId, variants):Void
+	function UpdateCreatureInfo(creatureId, variants, markAsRead:Boolean):Void
 	{
 		iVariants = variants.length;
 		if (iVariants > 1){
@@ -424,12 +474,13 @@ class BestiaryMenu extends MovieClip
 			VariantSelector_mc._visible = false;
 		}
 		
-		LoadCreatureInfo(creatureId, creatureVariants[iVariantIndex].id);
+		LoadCreatureInfo(creatureId, creatureVariants[iVariantIndex].id, sCurrentVariantCategory, markAsRead);
 		LoadCreatureImage(creatureId, creatureVariants[iVariantIndex].id);
 		LoadCreatureResist(creatureId, creatureVariants[iVariantIndex].id);
 		LoadCreatureLoot(creatureId, creatureVariants[iVariantIndex].id);
 		SetupCounters(creatureVariants[iVariantIndex]);
 		sCurrentVariant = creatureVariants[iVariantIndex];
+		RefreshVariantPills();
 	}
 	
 	function SetupCounters(creature):Void
@@ -538,7 +589,9 @@ class BestiaryMenu extends MovieClip
 			LoadCreatureResist(sCurrentCreature.id, sCurrentVariant.id, sCurrentVariantCategory);
 			CreatureDescription_mc.updateText();
 			SetupCounters(sCurrentVariant);
+			markVariantRead(sCurrentVariantCategory, sCurrentCreature.id, sCurrentVariant.id);
 			iVariantIndex += 1;
+			RefreshVariantPills()
 		}
 		else if (buttonId == "prev" && iVariantIndex > 0)
 		{
@@ -568,7 +621,9 @@ class BestiaryMenu extends MovieClip
 			LoadCreatureResist(sCurrentCreature.id, sCurrentVariant.id, sCurrentVariantCategory);
 			CreatureDescription_mc.updateText();
 			SetupCounters(sCurrentVariant);
+			markVariantRead(sCurrentVariantCategory, sCurrentCreature.id, sCurrentVariant.id);
 			iVariantIndex -= 1;
+			RefreshVariantPills()
 		}
 	}
 
@@ -606,7 +661,7 @@ class BestiaryMenu extends MovieClip
 		CategoryList.disableSelection = true;
 	}
 	
-	function setCreatureDisplayName(category, baseId):Void
+	function setCreatureDisplayName(category, baseId, variants:Array):Void
 	{
 		var path = "creatures/" + category + "/" + baseId + "/" + baseId + ".json";
 		var lv = new LoadVars();
@@ -616,7 +671,11 @@ class BestiaryMenu extends MovieClip
 			try
 			{
 				var creature:Object = JSON.parse(src);
-				that.CreatureList.entryList.push({text:creature.name, id:creature.id});
+				that.CreatureList.entryList.push({
+					text: creature.name,
+					id: creature.id,
+					unread: that.hasUnreadVariants(variants)
+				});
 			}
 			catch (ex)
 			{
@@ -635,8 +694,8 @@ class BestiaryMenu extends MovieClip
 			category = sCurrentVariantCategory;
 			
 		var path = "creatures/" + category + "/" + creatureId + "/" + variantId + ".dds";
-		var holder_width = 450;
-		var holder_height = 450;
+		var holder_width = imageWidth;
+		var holder_height = imageHeight;
 
 		var imageListener:Object = new Object();
 		imageListener.onLoadInit = function(target_mc:MovieClip)
@@ -649,8 +708,141 @@ class BestiaryMenu extends MovieClip
 		imageLoader.addListener(imageListener);
 		imageLoader.loadClip(path,ImageHolder);
 	}
+	
+	function hasUnreadVariants(variants:Array):Boolean
+	{
+		for (var i:Number = 0; i < variants.length; i++) {
+			if (variants[i].unread == 1) {
+				return true;
+			}
+		}
+		return false;
+	}
+	
+	function PositionVariantPill(pill:MovieClip, label:TextField, onLeft:Boolean):Void
+	{
+		if (!pill._visible) {
+			return;
+		}
+	
+		var gap:Number = 6;
+		var inset:Number = 2;
+		var textLeft:Number = label._x + inset;
+		var align:String = label.getTextFormat().align;
+	
+		if (align == "right") {
+			textLeft = label._x + label._width - inset - label.textWidth;
+		} else if (align == "center") {
+			textLeft = label._x + (label._width - label.textWidth) / 2;
+		}
+	
+		var offset:Number = gap + pill._width / 2;
+		pill._x = onLeft ? textLeft - offset : textLeft + label.textWidth + offset;
+	}
+	
+	function RefreshVariantPills():Void
+	{
+		VariantSelector_mc.newEntryLeft._visible = false;
+		VariantSelector_mc.newEntryRight._visible = false;
+	
+		var creatures:Array = allCreatures[sCurrentVariantCategory];
+		if (creatures == undefined || sCurrentCreature == undefined) {
+			return;
+		}
+	
+		var prevVariant:Object = creatureVariants[iVariantIndex - 1];
+		var nextVariant:Object = creatureVariants[iVariantIndex + 1];
+		var baseId:String = String(sCurrentCreature.id).toUpperCase();
+	
+		for (var i:Number = 0; i < creatures.length; i++) {
+			if (creatures[i].main != baseId) {
+				continue;
+			}
+	
+			var variants:Array = creatures[i].variants;
+			for (var j:Number = 0; j < variants.length; j++) {
+				var variant:Object = variants[j];
+				if (variant.unread != 1) {
+					continue;
+				}
+	
+				if (prevVariant != undefined &&
+					variant.name == String(prevVariant.id).toUpperCase()) {
+					VariantSelector_mc.newEntryLeft._visible = true;
+				}
+	
+				if (nextVariant != undefined &&
+					variant.name == String(nextVariant.id).toUpperCase()) {
+					VariantSelector_mc.newEntryRight._visible = true;
+				}
+			}
+			PositionVariantPill(VariantSelector_mc.newEntryLeft, VariantSelector_mc.textFieldLeft, true);
+			PositionVariantPill(VariantSelector_mc.newEntryRight, VariantSelector_mc.textFieldRight, false);
+			return;
+		}
+	}
+	
+	function markVariantRead(category:String, baseId:String, variantId:String):Void
+	{
+		var creatures:Array = allCreatures[category];
+		if (creatures == undefined) {
+			return;
+		}
+	
+		var selectedCreature:Object;
+		for (var i:Number = 0; i < creatures.length; i++) {
+			if (creatures[i].main == baseId.toUpperCase()) {
+				selectedCreature = creatures[i];
+				break;
+			}
+		}
+		if (selectedCreature == undefined) {
+			return;
+		}
+	
+		for (var j:Number = 0; j < selectedCreature.variants.length; j++) {
+			var variant:Object = selectedCreature.variants[j];
+			if (variant.name != variantId.toUpperCase()) {
+				continue;
+			}
+			if (variant.unread != 1) {
+				return;
+			}
+	
+			GameDelegate.call("MarkEntryRead", [variant.name]);
+			variant.unread = 0;
+	
+			if (category == sCurrentCategory) {
+				for (var row in CreatureList.entryList) {
+					var creatureRow:Object = CreatureList.entryList[row];
+					if (String(creatureRow.id).toUpperCase() == selectedCreature.main) {
+						creatureRow.unread = hasUnreadVariants(selectedCreature.variants);
+						break;
+					}
+				}
+				CreatureList.UpdateList();
+			}
+	
+			var categoryUnread:Boolean = false;
+			for (var k:Number = 0; k < creatures.length; k++) {
+				if (hasUnreadVariants(creatures[k].variants)) {
+					categoryUnread = true;
+					break;
+				}
+			}
+	
+			for (var row in CategoryList.entryList) {
+				if (CategoryList.entryList[row].id == category) {
+					CategoryList.entryList[row].unread = categoryUnread;
+					break;
+				}
+			}
+			CategoryList.UpdateList();
+			return;
+		}
+	}
 
-	function LoadCreatureInfo(creatureId, variantId, category):Void
+	function LoadCreatureInfo(creatureId, variantId, category, markAsRead:Boolean):Void
 	{
 		if (category == undefined)
 			category = sCurrentVariantCategory;
@@ -663,6 +855,17 @@ class BestiaryMenu extends MovieClip
 			try
 			{
 				var creature:Object = JSON.parse(src);
+				if (that.sCurrentVariantCategory != category ||
+					that.sCurrentCreature == undefined ||
+					String(that.sCurrentCreature.id).toUpperCase() != String(creatureId).toUpperCase() ||
+					that.sCurrentVariant == undefined ||
+					String(that.sCurrentVariant.id).toUpperCase() != String(variantId).toUpperCase()) {
+					return;
+				}
+				
+				if (markAsRead) {
+					that.markVariantRead(category, creatureId, variantId);
+				}
 				that.creatureNameTextField.text = creature.name;
 				that.creatureDescriptionTextField.text = creature.description;
 				that.CreatureDescription_mc.updateText();
@@ -689,8 +892,12 @@ class BestiaryMenu extends MovieClip
 			try
 			{
 				var creature:Object = JSON.parse(src);
-				that.DisplayResistAndWeak(creature.resistance[that.resistanceConfig], "resistance");
-				that.DisplayResistAndWeak(creature.weakness[that.resistanceConfig], "weakness");
+				var config:String = that.resistanceConfig;
+				var resistances = creature.resistance == undefined ? undefined : creature.resistance[config];
+				var weaknesses = creature.weakness == undefined ? undefined : creature.weakness[config];
+				
+				that.DisplayResistAndWeak(resistances instanceof Array ? resistances : [], "resistance");
+				that.DisplayResistAndWeak(weaknesses instanceof Array ? weaknesses : [], "weakness");
 			}
 			catch (ex)
 			{
@@ -725,7 +932,7 @@ class BestiaryMenu extends MovieClip
 		lv.load(path);
 	}
 
-	function HandleVariants(creatureId, variants)
+	function HandleVariants(creatureId, variants, markAsRead:Boolean)
 	{
 		creatureVariants = [];
 		creatureKills = [];
@@ -757,7 +964,7 @@ class BestiaryMenu extends MovieClip
 					}
 				}
 				that.creatureVariants.push(creature);
-				that.UpdateCreatureInfo(creatureId, variants);
+				that.UpdateCreatureInfo(creatureId, variants, markAsRead);
 			}
 			catch (ex)
 			{
@@ -1328,7 +1535,12 @@ class BestiaryMenu extends MovieClip
 					var categoryName = creaturesPerCategory[i].split(":")[0].toUpperCase();
 					var creaturesListArray = creaturesPerCategory[i].split(":")[1].split(",");
 					if (that.categoriesToLoad[j].id == categoryName){
-						that.CategoryList.entryList.push({text:that.categoriesToLoad[j].text.toUpperCase(), id:that.categoriesToLoad[j].id.toUpperCase()});
+						var categoryRow:Object = {
+							text: that.categoriesToLoad[j].text.toUpperCase(),
+							id: categoryName,
+							unread: false
+						};
+						that.CategoryList.entryList.push(categoryRow);
 						if (creaturesListArray.length > 0){
 							if (backupCategory == ""){
 								backupCategory = categoryName;
@@ -1337,8 +1549,15 @@ class BestiaryMenu extends MovieClip
 								var mainCrt = creaturesListArray[j].split("_")[0].toUpperCase();
 								var varCrt = new Array();
 								for (var k in creaturesListArray[j].split("_")[1].split("@"))
-									varCrt.unshift({name:creaturesListArray[j].split("_")[1].split("@")[k].split("#")[0].toUpperCase(),kills:parseInt(creaturesListArray[j].split("_")[1].split("@")[k].split("#")[1]),summons:parseInt(creaturesListArray[j].split("_")[1].split("@")[k].split("#")[2]),transforms:parseInt(creaturesListArray[j].split("_")[1].split("@")[k].split("#")[3])});
+									varCrt.unshift({name:creaturesListArray[j].split("_")[1].split("@")[k].split("#")[0].toUpperCase(),
+												   kills:parseInt(creaturesListArray[j].split("_")[1].split("@")[k].split("#")[1]),
+												   summons:parseInt(creaturesListArray[j].split("_")[1].split("@")[k].split("#")[2]),
+												   transforms:parseInt(creaturesListArray[j].split("_")[1].split("@")[k].split("#")[3]),
+												   unread:parseInt(creaturesListArray[j].split("_")[1].split("@")[k].split("#")[4])});
 								creaturesListArray[j] = {main: mainCrt, variants: varCrt};
+								if (that.hasUnreadVariants(varCrt)) {
+									categoryRow.unread = true;
+								}
 							}
 							var key:String = categoryName;
 							that.allCreatures[key] = new Object();
@@ -1354,7 +1573,7 @@ class BestiaryMenu extends MovieClip
 				that.UpdateCreatureList(that.sCurrentVariantCategory);
 				for (var i in that.aCurrentRoaster){
 					if (that.aCurrentRoaster[i].base == that.sCurrentCreature.id.toUpperCase()){
-						that.HandleVariants(that.aCurrentRoaster[i].base, that.aCurrentRoaster[i].variants);
+						that.HandleVariants(that.aCurrentRoaster[i].base, that.aCurrentRoaster[i].variants, false);
 						break;
 					}
 				}
@@ -1368,7 +1587,7 @@ class BestiaryMenu extends MovieClip
 				that.sCurrentCategory = backupCategory;
 				that.sCurrentVariantCategory = backupCategory;
 				that.iVariantIndex = 0;
-				that.HandleVariants(that.aCurrentRoaster[0].base, that.aCurrentRoaster[0].variants);
+				that.HandleVariants(that.aCurrentRoaster[0].base, that.aCurrentRoaster[0].variants, false);
 				var i = 0;
 				while (that.CategoryList.entryList[i].id != that.sCurrentCategory){
 					that.CategoryList.moveSelectionDown();
@@ -1407,6 +1626,24 @@ class BestiaryMenu extends MovieClip
 			return 1;
 		}
 		return 0;
+	}
+	
+	function SetWidescreen(widescreen:Boolean):Void {
+		if(!widescreen){
+			return;
+		}
+		
+		MenuRightSide._x += 160;
+		MenuLeftSide._x -= 160;
+		WeaknessPanel._x += 150;
+		ResistancePanel._x -= 130;
+		ImageBackground_mc._width = 440;
+		ImageBackground_mc._height = 440;
+		ImageBackground_mc._x -= 10;
+		ImageHolder._x -= 50;
+		VariantSelector_mc._x += 10;
+		imageWidth = 510;
+		imageHeight = 510;
 	}
 
 	function debugLog(message:Object):Void

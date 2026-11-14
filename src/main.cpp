@@ -32,6 +32,14 @@ void SKSEMessageHandler(SKSE::MessagingInterface::Message* message) {
             Scaleform::HUDWidget::Register();
             Scaleform::HUDWidget::Show();
             SetResistanceModConfig();
+            if (auto* message = RE::TESForm::LookupByEditorID<RE::BGSMessage>("HelpBestiaryLong")) {
+                for (const auto* editorID : { "HelpManualPC", "HelpManualXBox" }) {
+                    auto* list = RE::TESForm::LookupByEditorID<RE::BGSListForm>(editorID);
+                    if (list && !list->HasForm(message)) {
+                        list->forms.push_back(message);
+                    }
+                }
+            }
             break;
 
         case (SKSE::MessagingInterface::kInputLoaded):
@@ -39,7 +47,6 @@ void SKSEMessageHandler(SKSE::MessagingInterface::Message* message) {
             break;
 
         case SKSE::MessagingInterface::kPostLoadGame:
-        case SKSE::MessagingInterface::kPostLoad:
         case SKSE::MessagingInterface::kNewGame:
         case SKSE::MessagingInterface::kSaveGame:
             Scaleform::HUDWidget::Show();

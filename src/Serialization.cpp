@@ -1,5 +1,9 @@
 #include "Serialization.h"
 
+namespace {
+    constexpr std::uint32_t kUnreadDataVersion = 4;
+}
+
 void RevertCallback(SKSE::SerializationInterface*) {
     logger::info("RevertCallback triggered.");
     BestiaryDataMap.clear();
@@ -10,7 +14,7 @@ void RevertCallback(SKSE::SerializationInterface*) {
 
 void SaveCallback(SKSE::SerializationInterface* intfc) {
     logger::info("SaveCallback triggered.");
-    intfc->OpenRecord('BSTY', DATA_VERSION);
+    intfc->OpenRecord('BSTY', kUnreadDataVersion);
     Serialize(intfc);
 
     intfc->OpenRecord('LAST', DATA_VERSION);  // New record for lastEntry
@@ -80,7 +84,6 @@ void Serialize(SKSE::SerializationInterface* intfc) {
 }
 
 bool Deserialize(SKSE::SerializationInterface* intfc, uint32_t version) {
-    (void)version;
     uint32_t size;
     if (!intfc->ReadRecordData(&size, sizeof(size))) {
         logger::error("Failed to read size of BestiaryDataMap");
@@ -101,7 +104,7 @@ bool Deserialize(SKSE::SerializationInterface* intfc, uint32_t version) {
             return false;
         }
         CreatureData data;
-        if (!data.Deserialize(intfc)) {
+        if (!data.Deserialize(intfc, version)) {
             logger::error("Failed to deserialize creature data for {}", creatureName);
             return false;
         }
@@ -115,8 +118,12 @@ void CreatureData::Serialize(SKSE::SerializationInterface* intfc) const {
     intfc->WriteRecordData(kills);
     intfc->WriteRecordData(summons);
     intfc->WriteRecordData(transformations);
+    intfc->WriteRecordData(unread);
 }
 
-bool CreatureData::Deserialize(SKSE::SerializationInterface* intfc) {
-    return intfc->ReadRecordData(kills) && intfc->ReadRecordData(summons) && intfc->ReadRecordData(transformations);
+bool CreatureData::Deserialize(SKSE::SerializationInterface* intfc, std::uint32_t version) {
+    return intfc->ReadRecordData(kills) &&
+        intfc->ReadRecordData(summons) &&
+        intfc->ReadRecordData(transformations) &&
+        (version < kUnreadDataVersion || intfc->ReadRecordData(unread));
 }

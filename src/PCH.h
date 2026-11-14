@@ -22,4 +22,4 @@
 
 using namespace std::literals;
 
-constexpr uint32_t DATA_VERSION = 3;
+constexpr std::uint32_t DATA_VERSION = 4;

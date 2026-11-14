@@ -12,9 +12,10 @@ std::mutex entryMutex;
 void ProcessQueue() {
     while (true) {
         std::unique_lock<std::mutex> lock(entryMutex);
-        auto ui = RE::UI::GetSingleton();
+        auto* ui = RE::UI::GetSingleton();
+        auto* tasks = SKSE::GetTaskInterface();
 
-        if (!entryQueue.empty() && !isDisplayingEntry && !ui->GameIsPaused()) {
+        if (ui && tasks && !entryQueue.empty() && !isDisplayingEntry && !ui->GameIsPaused()) {
             std::string variant = entryQueue.front();
             entryQueue.pop();
 
@@ -22,7 +23,9 @@ void ProcessQueue() {
 
             isDisplayingEntry = true;
 
-            Scaleform::HUDWidget::DisplayEntry(variant);
+            tasks->AddUITask([variant] {
+                Scaleform::HUDWidget::DisplayEntry(variant);
+                });
 
             std::this_thread::sleep_for(std::chrono::seconds(4));
 

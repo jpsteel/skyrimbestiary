@@ -2,6 +2,16 @@
 #include "Scaleform.h"
 #include "Utility.h"
 
+static bool IsHelgenIntroLocked() {
+    auto* quest = RE::TESForm::LookupByEditorID<RE::TESQuest>("MQ101");
+    if (!quest) {
+        return false;
+    }
+
+    return quest->IsRunning() && quest->GetCurrentStageID() > 0 &&
+        quest->GetCurrentStageID() < 250;
+}
+
 namespace Scaleform {
     BestiaryMenu::BestiaryMenu() {
         auto scaleformManager = RE::BSScaleformManager::GetSingleton();
@@ -44,6 +54,12 @@ namespace Scaleform {
             logger::warn("Blocked attempt to open Bestiary, isBestiaryBlocked set to True.");
             return;
         }
+
+        if (IsHelgenIntroLocked()) {
+            logger::warn("Blocked attempt to open Bestiary during intro quest.");
+            return;
+        }
+
         if (uiMessageQueue) {
             uiMessageQueue->AddMessage(BestiaryMenu::MENU_NAME, RE::UI_MESSAGE_TYPE::kShow, nullptr);
             RE::UIBlurManager::GetSingleton()->IncrementBlurCount();
@@ -61,6 +77,8 @@ namespace Scaleform {
 
     void BestiaryMenu::Accept(RE::FxDelegateHandler::CallbackProcessor* a_cbReg) {
         a_cbReg->Process("PlaySound", PlaySound);
+        a_cbReg->Process("CloseMenu", CloseMenu);
+        a_cbReg->Process("MarkEntryRead", MarkEntryRead);
     }
 
     void BestiaryMenu::PlaySound(const RE::FxDelegateArgs& a_params) {
@@ -68,5 +86,30 @@ namespace Scaleform {
         assert(a_params[0].IsString());
 
         RE::PlaySound(a_params[0].GetString());
+    }
+
+    void BestiaryMenu::CloseMenu(const RE::FxDelegateArgs& args) {
+        auto* ui = RE::UI::GetSingleton();
+        if (!ui || !ui->IsMenuOpen(MENU_NAME) ||
+            ui->IsMenuOpen(RE::TutorialMenu::MENU_NAME)) {
+            return;
+        }
+
+        if (args.GetArgCount() == 1 && args[0].IsString()) {
+            lastEntry = args[0].GetString();
+        }
+
+        Hide();
+    }
+
+    void BestiaryMenu::MarkEntryRead(const RE::FxDelegateArgs& args) {
+        if (args.GetArgCount() != 1 || !args[0].IsString()) {
+            return;
+        }
+
+        const auto entry = BestiaryDataMap.find(args[0].GetString());
+        if (entry != BestiaryDataMap.end()) {
+            entry->second.unread = false;
+        }
     }
 }

@@ -5,16 +5,25 @@
 
 RE::BSEventNotifyControl EventProcessor::ProcessEvent(const RE::TESActivateEvent* event,
                                                       RE::BSTEventSource<RE::TESActivateEvent>*) {
-    RE::TESBoundObject* actionBase = event->actionRef.get()->GetBaseObject();
-    RE::TESBoundObject* targetBase = event->objectActivated.get()->GetBaseObject();
+    auto actionRef = event->actionRef.get();
+    auto objectActivated = event->objectActivated.get();
+    if (!actionRef || !objectActivated) {
+        return RE::BSEventNotifyControl::kContinue;
+    }
+
+    auto* actionBase = actionRef->GetBaseObject();
+    auto* targetBase = objectActivated->GetBaseObject();
+    if (!actionBase || !targetBase) {
+        return RE::BSEventNotifyControl::kContinue;
+    }
     if (actionBase->IsPlayer()) {
         std::string factionEditorID = "RPGUI_BestiaryAddEntryOnTalkFaction";
         RE::TESForm* recForm = RE::TESForm::LookupByEditorID(factionEditorID);
         RE::TESFaction* recFaction = skyrim_cast<RE::TESFaction*>(recForm);
 
         if (targetBase->Is(RE::FormType::NPC)) {
-            auto actor = event->objectActivated.get()->As<RE::Actor>();
-            if (actor->IsInFaction(recFaction)) {
+            auto actor = objectActivated->As<RE::Actor>();
+            if (actor && recFaction && actor->IsInFaction(recFaction)) {
                 logger::debug("Player activated {}, who is a member of RPGUI_BestiaryAddEntryOnTalkFaction faction",
                               targetBase->GetName());
                 getBestiaryKeywords(targetBase);
@@ -34,15 +43,18 @@ RE::BSEventNotifyControl EventProcessor::ProcessEvent(const RE::TESDeathEvent* e
         return RE::BSEventNotifyControl::kContinue;
     }
 
-    RE::TESBoundObject* victimBase = event->actorDying.get()->GetBaseObject();
-    RE::TESBoundObject* killerBase = event->actorKiller.get()->GetBaseObject();
+    auto* victimBase = victim->GetBaseObject();
+    auto* killerBase = killer->GetBaseObject();
+    if (!victimBase || !killerBase) {
+        return RE::BSEventNotifyControl::kContinue;
+    }
 
     std::string factionEditorID = "RPGUI_BestiaryAddEntryOnDeathUnique";
     RE::TESForm* recForm = RE::TESForm::LookupByEditorID(factionEditorID);
     RE::TESFaction* recFaction = skyrim_cast<RE::TESFaction*>(recForm);
 
-    auto victimActor = event->actorDying.get()->As<RE::Actor>();
-    if (killerBase->IsPlayer() || victimActor->IsInFaction(recFaction)) {
+    auto victimActor = victim->As<RE::Actor>();
+    if (killerBase->IsPlayer() || (recFaction && victimActor && victimActor->IsInFaction(recFaction))) {
         logger::debug("Player killed {}", victimBase->GetName());
         auto addedVariants = getBestiaryKeywords(victimBase);
         for (const auto& variant : addedVariants) {
@@ -83,7 +95,7 @@ RE::BSEventNotifyControl EventProcessor::ProcessEvent(const RE::TESSpellCastEven
     auto addedVariants = getBestiaryKeywords(spell);
     for (const auto& variant : addedVariants) {
         auto& data = BestiaryDataMap[variant];
-        if (spell->GetSpellType() == RE::MagicSystem::SpellType::kSpell) {
+        if (spell->GetSpellType() == RE::MagicSystem::SpellType::kSpell || spell->GetSpellType() == RE::MagicSystem::SpellType::kScroll) {
             data.summons++;
             logger::info("Incremented summon count for {}: {}", variant, data.summons);
 
@@ -122,7 +134,7 @@ RE::BSEventNotifyControl EventProcessor::ProcessEvent(const RE::TESQuestStageEve
     if (event->formID == WaveBreakerQuestID) {
         if (event->stage == 500) {
             logger::info("Player killed Emperor Crab");
-            auto& data = BestiaryDataMap["EMPEROR CRAB"];
+            auto& data = BestiaryDataMap.try_emplace("EMPEROR CRAB", CreatureData{ 0, 0, 0, true }).first->second;
             data.kills++;
             logger::info("Incremented kill count for Emperor Crab: {}", data.kills);
 
@@ -140,25 +152,48 @@ RE::BSEventNotifyControl EventProcessor::ProcessEvent(const RE::MenuOpenCloseEve
         return RE::BSEventNotifyControl::kContinue;
     }
 
-    auto ui = RE::UI::GetSingleton();
     if (event->opening) {
         if (event->menuName == Scaleform::BestiaryMenu::MENU_NAME) {
-            if (auto menu = ui->GetMenu(Scaleform::BestiaryMenu::MENU_NAME); menu) {
+            auto* tasks = SKSE::GetTaskInterface();
+            if (!tasks) {
+                return RE::BSEventNotifyControl::kContinue;
+            }
+
+            tasks->AddUITask([] {
+                auto* ui = RE::UI::GetSingleton();
+                if (!ui) {
+                    return;
+                }
+
+                auto menu = ui->GetMenu(Scaleform::BestiaryMenu::MENU_NAME);
+                if (!menu || !menu->uiMovie) {
+                    return;
+                }
+
                 RE::GFxValue page;
-                RE::GFxValue sCurrentCreature;
-                ui->GetMenu(Scaleform::BestiaryMenu::MENU_NAME)->uiMovie->GetVariable(&page, "_root.BestiaryMenu_mc");
+                if (!menu->uiMovie->GetVariable(&page, "_root.BestiaryMenu_mc") || !page.IsObject()) {
+                    return;
+                }
+
+                //Screen size adaptation///////
+                UpdateUltraWide(*menu->uiMovie.get());
+
+                RE::GFxValue arg;
+                arg.SetBoolean(g_isUltraWide);
+
+                menu->uiMovie->Invoke("_root.BestiaryMenu_mc.SetWidescreen", nullptr, &arg, 1);
+                ////////////////////////////////
 
                 std::array<RE::GFxValue, 1> configArgs;
                 std::array<RE::GFxValue, 1> lastEntryArgs;
                 std::array<RE::GFxValue, 1> listArgs;
                 std::array<RE::GFxValue, 1> gamepadArgs;
-                std::string creaturesList;
-                if (GetGlobalVariableValue("RPGUI_devMode") == 1) {
-                    creaturesList = DebugGetAllCreaturesLists();
-                } else {
-                    creaturesList = GetCreaturesLists();
-                }
-                int gamepad = RE::BSInputDeviceManager::GetSingleton()->IsGamepadEnabled();
+                const std::string creaturesList = GetGlobalVariableValue("RPGUI_devMode") == 1
+                    ? DebugGetAllCreaturesLists()
+                    : GetCreaturesLists();
+                auto* input = RE::BSInputDeviceManager::GetSingleton();
+                const int gamepad = input && input->IsGamepadEnabled();
+
                 configArgs[0] = resistanceModConfig;
                 lastEntryArgs[0] = lastEntry;
                 listArgs[0] = creaturesList;
@@ -169,10 +204,10 @@ RE::BSEventNotifyControl EventProcessor::ProcessEvent(const RE::MenuOpenCloseEve
                 page.Invoke("getLastEntry", nullptr, lastEntryArgs.data(), lastEntryArgs.size());
                 page.Invoke("getAllCreaturesLists", nullptr, listArgs.data(), listArgs.size());
 
-                return RE::BSEventNotifyControl::kContinue;
-            }
-        } else if (event->menuName == RE::JournalMenu::MENU_NAME && enableMenuOption == 1) {
-            AddMenuOption();
+                if (auto* message = RE::TESForm::LookupByEditorID<RE::BGSMessage>("HelpBestiaryShort")) {
+                    RE::TutorialMenu::OpenMenu(message);
+                }
+                });
             return RE::BSEventNotifyControl::kContinue;
         } else if (event->menuName == RE::BookMenu::MENU_NAME) {
             auto book = RE::BookMenu::GetTargetForm();
@@ -196,105 +231,61 @@ RE::BSEventNotifyControl EventProcessor::ProcessEvent(const RE::MenuOpenCloseEve
 
 RE::BSEventNotifyControl EventProcessor::ProcessEvent(RE::InputEvent* const* eventPtr,
                                                       RE::BSTEventSource<RE::InputEvent*>*) {
-    if (!eventPtr || !*eventPtr || !RE::Main::GetSingleton()->gameActive) {
+    auto* main = RE::Main::GetSingleton();
+    if (!eventPtr || !*eventPtr || !main || !main->GetRuntimeData().gameActive) {
         return RE::BSEventNotifyControl::kContinue;
+    }
+
+    if (auto* ui = RE::UI::GetSingleton();
+        ui && ui->IsMenuOpen(Scaleform::BestiaryMenu::MENU_NAME) &&
+        !ui->IsMenuOpen(RE::TutorialMenu::MENU_NAME)) {
+        for (auto* input = *eventPtr; input; input = input->next) {
+            const auto* stick = input->AsThumbstickEvent();
+            if (!stick || stick->GetDevice() != RE::INPUT_DEVICE::kGamepad ||
+                !stick->IsRight()) {
+                continue;
+            }
+
+            if (auto menu = ui->GetMenu(Scaleform::BestiaryMenu::MENU_NAME);
+                menu && menu->uiMovie) {
+                RE::GFxValue args[] = {
+                    RE::GFxValue(static_cast<double>(stick->xValue)),
+                    RE::GFxValue(static_cast<double>(stick->yValue))
+                };
+                menu->uiMovie->Invoke("_root.BestiaryMenu_mc.onRightStickInput", nullptr, args, 2);
+            }
+        }
     }
 
     auto* event = *eventPtr;
     if (event->eventType == RE::INPUT_EVENT_TYPE::kButton) {
         auto* buttonEvent = event->AsButtonEvent(); 
-        auto dxScanCode = buttonEvent->GetIDCode(); 
+        auto keyCode = buttonEvent->GetIDCode();
+        if (buttonEvent->GetDevice() == RE::INPUT_DEVICE::kGamepad) {
+            keyCode = SKSE::InputMap::GamepadMaskToKeycode(keyCode);
+        }
         auto userEvent = RE::UserEvents::GetSingleton();
         if (buttonEvent->IsDown()) {
-            auto ui = RE::UI::GetSingleton();
-            if (dxScanCode == menuHotkey && buttonEvent->IsDown()) {
+            auto* ui = RE::UI::GetSingleton();
+            if (!ui || ui->IsMenuOpen(RE::TutorialMenu::MENU_NAME)) {
+                return RE::BSEventNotifyControl::kContinue;
+            }
+            if (keyCode == menuHotkey) {
                 if (!ui->IsMenuOpen(Scaleform::BestiaryMenu::MENU_NAME) && !ui->GameIsPaused() &&
-                    !ui->IsMenuOpen(RE::DialogueMenu::MENU_NAME)) {
+                    !ui->IsMenuOpen(RE::DialogueMenu::MENU_NAME) && !ui->IsMenuOpen(RE::CraftingMenu::MENU_NAME)) {
                     Scaleform::BestiaryMenu::Show();
                     return RE::BSEventNotifyControl::kContinue;
                 } else if (ui->IsMenuOpen(Scaleform::BestiaryMenu::MENU_NAME)) {
-                    RE::GFxValue page;
-                    ui->GetMenu(Scaleform::BestiaryMenu::MENU_NAME)
-                        ->uiMovie->GetVariable(&page, "_root.BestiaryMenu_mc");
-                    RE::GFxValue lastEntryGFx;
-                    page.Invoke("sendLastEntry", &lastEntryGFx);
-
-                    Scaleform::BestiaryMenu::Hide();
-                    if (GetGlobalVariableValue("RPGUI_devMode") == 1) {
-                        return RE::BSEventNotifyControl::kContinue;
+                    if (auto menu = ui->GetMenu(Scaleform::BestiaryMenu::MENU_NAME);
+                        menu && menu->uiMovie) {
+                        menu->uiMovie->Invoke("_root.BestiaryMenu_mc.CloseMenu", nullptr, nullptr, 0);
                     }
-                    lastEntry = lastEntryGFx.GetString();
-                    logger::trace("Retrieved lastEntry string: {}", lastEntry);
                     return RE::BSEventNotifyControl::kContinue;
                 } else {
                     return RE::BSEventNotifyControl::kContinue;
                 }
-            } else if (buttonEvent->QUserEvent() == userEvent->cancel ||
-                       buttonEvent->QUserEvent() == userEvent->tweenMenu) {
-                if (ui->IsMenuOpen(Scaleform::BestiaryMenu::MENU_NAME)) {
-                    RE::GFxValue page;
-                    ui->GetMenu(Scaleform::BestiaryMenu::MENU_NAME)
-                        ->uiMovie->GetVariable(&page, "_root.BestiaryMenu_mc");
-                    RE::GFxValue lastEntryGFx;
-                    page.Invoke("sendLastEntry", &lastEntryGFx);
-
-                    Scaleform::BestiaryMenu::Hide();
-
-                    lastEntry = lastEntryGFx.GetString();
-                    logger::trace("Retrieved lastEntry string: {}", lastEntry);
-
-                    return RE::BSEventNotifyControl::kContinue;
-                }
             }
         }
-    }
-
-    auto ui = RE::UI::GetSingleton();
-    if (!ui || !ui->IsMenuOpen(RE::JournalMenu::MENU_NAME) || enableMenuOption != 1) {
-        return RE::BSEventNotifyControl::kContinue;
-    }
-
-    if (event->eventType == RE::INPUT_EVENT_TYPE::kButton || event->eventType == RE::INPUT_EVENT_TYPE::kThumbstick) {
-        const auto menu = ui->GetMenu<RE::JournalMenu>(RE::JournalMenu::MENU_NAME).get();
-        const auto view = menu ? menu->GetRuntimeData().systemTab.view : nullptr;
-        RE::GFxValue page;
-        if (!view || !view->GetVariable(&page, "_root.QuestJournalFader.Menu_mc.SystemFader.Page_mc")) { 
-            logger::warn("Couldn't find _root.QuestJournalFader.Menu_mc.SystemFader.Page_mc"); 
-            return RE::BSEventNotifyControl::kContinue;
-        }
-
-        RE::GFxValue categoryList;
-        RE::GFxValue currentState;
-        if (page.GetMember("CategoryList", &categoryList) && page.GetMember("iCurrentState", &currentState)) {
-
-            RE::GFxValue selectedIndex; 
-            if (categoryList.GetMember("iSelectedIndex", &selectedIndex)) {
-                RE::GFxValue entryList;
-                if (categoryList.GetMember("entryList", &entryList)) { 
-                    RE::GFxValue selectedEntry;
-                    entryList.GetElement(selectedIndex.GetNumber(), &selectedEntry);
-                    RE::GFxValue entryText;
-                    selectedEntry.GetMember("text", &entryText);
-                    logger::trace("Entry text: {}", entryText.GetString());
-                    logger::trace("Current state: {}", currentState.GetNumber());
-                    if (entryText.GetString() == SYSTEMMENU_ALIAS && currentState == 13) {
-                        logger::debug("Selected entry is {}", entryText.GetString()); 
-                        auto msgQueue = RE::UIMessageQueue::GetSingleton();
-                        if (msgQueue) {
-                            msgQueue->AddMessage(RE::JournalMenu::MENU_NAME, RE::UI_MESSAGE_TYPE::kHide, nullptr);
-
-                            Scaleform::BestiaryMenu::Show();
-                            
-                            return RE::BSEventNotifyControl::kContinue;
-                        } else {
-                            logger::warn("UIMessageQueue singleton not found");
-                        }
-                        return RE::BSEventNotifyControl::kContinue;
-                    }
-                }
-            } 
-        }
-        return RE::BSEventNotifyControl::kContinue;
     }
     return RE::BSEventNotifyControl::kContinue;
 }
@@ -320,7 +311,7 @@ std::vector<std::string> EventProcessor::getBestiaryKeywords(RE::TESBoundObject*
             if (it != VariantMap.end()) {
                 logger::debug("Found bestiary keyword: {}", variant);
                 auto [creatureName, category, localizedName] = it->second;
-                auto [insertIt, inserted] = BestiaryDataMap.emplace(variant, CreatureData{0, 0, 0});
+                auto [insertIt, inserted] = BestiaryDataMap.emplace(variant, CreatureData{0, 0, 0, true});
                 if (inserted) {
                     logger::info("{} added to Bestiary with initial values", variant);
                     if (enableWidget == 1) {

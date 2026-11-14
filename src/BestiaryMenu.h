@@ -30,6 +30,8 @@ namespace Scaleform {
 
     private:
         static void PlaySound(const RE::FxDelegateArgs& a_params);
+        static void CloseMenu(const RE::FxDelegateArgs& args);
+        static void MarkEntryRead(const RE::FxDelegateArgs& args);
     };
 
     constexpr std::string_view BestiaryMenu::Name() { return BestiaryMenu::MENU_NAME; }

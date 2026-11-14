@@ -1,9 +1,12 @@
 {
-    "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
-    "dependencies": [
-      "commonlibsse-ng",
-      "simpleini",
-      "nlohmann-json",
-      "xbyak"
-    ]
+  "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+  "dependencies": [
+    "simpleini",
+    "nlohmann-json",
+    "fmt",
+    "spdlog",
+    "rapidcsv",
+    "directxmath",
+    "directxtk"
+  ]
 }
